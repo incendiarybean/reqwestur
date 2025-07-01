@@ -1,18 +1,18 @@
-use std::{
-    f32::consts::PI,
-    process::{ExitCode, exit},
-};
+use std::{f32::consts::PI, process::exit};
 
 use eframe::{
-    egui::{self, FontId, Pos2, Sense, Vec2, include_image},
+    egui::{self, FontId, Pos2, Vec2, include_image},
     epaint::TextShape,
 };
-use egui_extras::TableBuilder;
 
 use crate::Reqwestur;
 
 pub fn window(reqwestur: &mut Reqwestur, ui: &mut egui::Ui) {
-    let default_expanded_size = ui.available_width() / 3.;
+    let default_expanded_size = if ui.available_width() < 500. {
+        ui.available_width()
+    } else {
+        ui.available_width() / 3.
+    };
 
     egui::TopBottomPanel::top("settings_panel").show(ui.ctx(), |ui| {
         ui.add_space(2.);
@@ -43,6 +43,7 @@ pub fn window(reqwestur: &mut Reqwestur, ui: &mut egui::Ui) {
 
     egui::SidePanel::new(egui::panel::Side::Left, "control_panel")
         .min_width(15.)
+        .resizable(false)
         .show(ui.ctx(), |ui| {
             if !reqwestur.control_panel_visible {
                 // Draw the 90 degree label
@@ -50,14 +51,11 @@ pub fn window(reqwestur: &mut Reqwestur, ui: &mut egui::Ui) {
 
                 ui.set_width(23.);
             } else {
-                ui.set_width(default_expanded_size);
+                ui.set_width(default_expanded_size - 58.);
             }
 
+            ui.add_space(5.);
             ui.horizontal(|ui| {
-                if reqwestur.control_panel_visible {
-                    ui.heading("Request");
-                }
-
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
                     let left_chevron_icon = include_image!("../assets/double_left_chevron.svg");
                     let right_chevron_icon = include_image!("../assets/double_right_chevron.svg");
@@ -81,18 +79,9 @@ pub fn window(reqwestur: &mut Reqwestur, ui: &mut egui::Ui) {
             });
         });
 
-    egui::CentralPanel::default().show(ui.ctx(), |ui| {
-        ui.group(|ui| {
-            ui.heading("CENTER");
-            ui.allocate_space(Vec2 {
-                x: ui.available_width(),
-                y: ui.available_height(),
-            });
-        });
-    });
-
     egui::SidePanel::new(egui::panel::Side::Right, "history_panel")
         .min_width(15.)
+        .resizable(false)
         .show(ui.ctx(), |ui| {
             if !reqwestur.history_panel_visible {
                 // Draw the 90 degree label
@@ -103,6 +92,7 @@ pub fn window(reqwestur: &mut Reqwestur, ui: &mut egui::Ui) {
                 ui.set_width(default_expanded_size);
             }
 
+            ui.add_space(5.);
             ui.horizontal(|ui| {
                 ui.with_layout(egui::Layout::left_to_right(egui::Align::Max), |ui| {
                     let left_chevron_icon = include_image!("../assets/double_left_chevron.svg");
@@ -171,6 +161,16 @@ pub fn window(reqwestur: &mut Reqwestur, ui: &mut egui::Ui) {
                 });
             }
         });
+
+    egui::CentralPanel::default().show(ui.ctx(), |ui| {
+        ui.group(|ui| {
+            ui.heading("CENTER");
+            ui.allocate_space(Vec2 {
+                x: ui.available_width(),
+                y: ui.available_height(),
+            });
+        });
+    });
 }
 
 fn draw_angled_text(ui: &egui::Ui, text: &'static str) {
@@ -180,8 +180,8 @@ fn draw_angled_text(ui: &egui::Ui, text: &'static str) {
 
     let label = TextShape::new(
         Pos2 {
-            x: rect.center_top().x + 12.,
-            y: rect.center_top().y + 30.,
+            x: rect.center_top().x + 11.,
+            y: rect.center_top().y + 35.,
         },
         ui.fonts(|f| {
             f.layout_no_wrap(

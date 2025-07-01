@@ -12,7 +12,7 @@ fn main() -> Result<(), eframe::Error> {
     let options = eframe::NativeOptions {
         viewport: eframe::egui::ViewportBuilder::default()
             .with_decorations(true)
-            .with_min_inner_size(egui::vec2(250.0, 160.0))
+            .with_min_inner_size(egui::vec2(600.0, 400.0))
             .with_resizable(true)
             .with_icon(Arc::new(egui::viewport::IconData {
                 rgba: img.into_bytes(),
