@@ -1,7 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
 use eframe::egui;
-use std::sync::Arc;
+use std::{clone, sync::Arc};
 
 mod ui;
 
@@ -45,23 +45,91 @@ fn main() -> Result<(), eframe::Error> {
     )
 }
 
-#[derive(serde::Deserialize, serde::Serialize)]
+#[derive(Default, serde::Deserialize, serde::Serialize, Clone, PartialEq, Eq)]
+enum Method {
+    #[default]
+    GET,
+    POST,
+    PUT,
+    PATCH,
+    DELETE,
+}
+
+impl Method {
+    const OPTIONS: [Self; 5] = [Self::GET, Self::POST, Self::PUT, Self::PATCH, Self::DELETE];
+
+    fn to_string(&self) -> String {
+        let str = match self {
+            Method::GET => "GET",
+            Method::POST => "POST",
+            Method::PUT => "PUT",
+            Method::PATCH => "PATCH",
+            Method::DELETE => "DELETE",
+        };
+
+        str.to_string()
+    }
+
+    fn to_list() -> Vec<Method> {
+        Self::OPTIONS.to_vec()
+    }
+}
+
+#[derive(Default, serde::Deserialize, serde::Serialize, Clone)]
+#[serde(default)]
+struct Response {
+    status_code: u16,
+    body: String,
+}
+
+#[derive(Default, serde::Deserialize, serde::Serialize, Clone)]
+#[serde(default)]
+struct Headers {
+    key: String,
+    value: String,
+}
+
+#[derive(Default, serde::Deserialize, serde::Serialize, Clone)]
+#[serde(default)]
+struct Request {
+    uri: String,
+    method: Method,
+    headers: Vec<Headers>,
+    response: Response,
+}
+
+#[derive(serde::Deserialize, serde::Serialize, Clone)]
 #[serde(default)]
 pub struct Reqwestur {
-    // Control Panel
-    control_panel_visible: bool,
+    // Request
+    request: Request,
 
-    // History Panel
-    history_panel_visible: bool,
-    request_history: Vec<(String, String)>,
+    // History
+    history: Vec<Request>,
+
+    // Editors
+    headers_editor_open: bool,
+
+    // Panel
+    request_panel_minimised: bool,
+    history_panel_minimised: bool,
 }
 
 impl Default for Reqwestur {
     fn default() -> Self {
         Self {
-            control_panel_visible: true,
-            history_panel_visible: false,
-            request_history: Vec::new(),
+            // Request
+            request: Request::default(),
+
+            // History
+            history: Vec::new(),
+
+            // Editors
+            headers_editor_open: false,
+
+            // Panels
+            request_panel_minimised: false,
+            history_panel_minimised: true,
         }
     }
 }
@@ -77,7 +145,8 @@ impl Reqwestur {
 
             // Create new app to generate mutables
             return Self {
-                // request_history: Vec::new(),
+                request: Request::default(),
+                headers_editor_open: false,
                 ..previous_values
             };
         }
