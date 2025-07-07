@@ -5,10 +5,10 @@ edition = "2024"
 
 [dependencies]
 eframe = { version = "0.31.1", features = ["persistence", "x11"] }
-egui_extras = { version = "0.31.1", features = ["svg", "image"] }
+egui_extras = { version = "0.31.1", features = ["svg", "image", "syntect"] }
 futures = "0.3.31"
 image = { version = "0.25.6" }
-reqwest = "0.12.21"
+reqwest = { version = "0.12.21", features = ["blocking"] }
 serde = "1.0.219"
 serde_json = "1.0.140"
 tokio = { version = "1.45.1", features = ["full"] }

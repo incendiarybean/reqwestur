@@ -4,8 +4,9 @@ use eframe::{
     egui::{self, Color32, FontId, Pos2, Vec2, include_image},
     epaint::TextShape,
 };
+use egui_extras::syntax_highlighting::{self, code_view_ui};
 
-use crate::Reqwestur;
+use crate::utils::reqwestur::{BodyType, Header, Method, Reqwestur};
 
 pub fn window(app: &mut Reqwestur, ui: &mut egui::Ui) {
     let default_expanded_size = if ui.available_width() < 500. {
@@ -20,16 +21,16 @@ pub fn window(app: &mut Reqwestur, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
             egui::menu::menu_button(ui, "File", |ui| {
                 ui.menu_button("Export", |ui| {
-                    // ui.button("History");
-                    // ui.button("Requests");
+                    if ui.button("History").clicked() {};
+                    if ui.button("Requests").clicked() {};
                 });
 
                 ui.menu_button("Import", |ui| {
-                    // ui.button("History");
-                    // ui.button("Requests");
+                    if ui.button("History").clicked() {};
+                    if ui.button("Requests").clicked() {};
                 });
 
-                // ui.button("Save Request");
+                if ui.button("Save Request").clicked() {};
 
                 if ui.button("Exit").clicked() {
                     exit(1);
@@ -37,8 +38,8 @@ pub fn window(app: &mut Reqwestur, ui: &mut egui::Ui) {
             });
 
             egui::menu::menu_button(ui, "Help", |ui| {
-                // ui.button("Guidance");
-                // ui.button("About");
+                if ui.button("Guidance").clicked() {};
+                if ui.button("About").clicked() {};
             });
         });
 
@@ -91,36 +92,25 @@ pub fn window(app: &mut Reqwestur, ui: &mut egui::Ui) {
                 ui.with_layout(egui::Layout::bottom_up(egui::Align::Min), |ui| {
                     ui.add_space(2.);
                     let send_icon = include_image!("../assets/paper_plane.svg");
-                    ui.add(
-                        egui::Button::image_and_text(
-                            egui::Image::new(send_icon)
-                                .fit_to_exact_size(Vec2 { x: 16., y: 16. })
-                                .tint(Color32::LIGHT_BLUE),
-                            "Send Request",
+                    if ui
+                        .add(
+                            egui::Button::image_and_text(
+                                egui::Image::new(send_icon)
+                                    .fit_to_exact_size(Vec2 { x: 16., y: 16. })
+                                    .tint(Color32::LIGHT_BLUE),
+                                "Send Request",
+                            )
+                            .min_size(Vec2 {
+                                x: ui.available_width(),
+                                y: 0.,
+                            }),
                         )
-                        .min_size(Vec2 {
-                            x: ui.available_width(),
-                            y: 0.,
-                        }),
-                    );
+                        .clicked()
+                    {
+                        app.history.push(app.request.clone());
+                    };
 
                     ui.with_layout(egui::Layout::top_down(egui::Align::Min), |ui| {
-                        // Method
-                        padded_group(ui, |ui| {
-                            ui.label("Request Method:");
-                            egui::ComboBox::new("method_list", "Method")
-                                .selected_text(app.request.method.to_string())
-                                .show_ui(ui, |ui| {
-                                    for method in crate::Method::to_list() {
-                                        ui.selectable_value(
-                                            &mut app.request.method,
-                                            method.clone(),
-                                            method.to_string(),
-                                        );
-                                    }
-                                });
-                        });
-
                         // URL
                         padded_group(ui, |ui| {
                             ui.allocate_ui(
@@ -143,14 +133,56 @@ pub fn window(app: &mut Reqwestur, ui: &mut egui::Ui) {
                             );
                         });
 
+                        // Method
+                        padded_group(ui, |ui| {
+                            ui.label("Request Method:");
+                            egui::ComboBox::new("method_list", "Method")
+                                .selected_text(app.request.method.to_string())
+                                .show_ui(ui, |ui| {
+                                    for method in Method::values() {
+                                        ui.selectable_value(
+                                            &mut app.request.method,
+                                            method.clone(),
+                                            method.to_string(),
+                                        );
+                                    }
+                                });
+                        });
+
+                        // Request Body
+                        if [Method::PATCH, Method::POST, Method::PUT].contains(&app.request.method)
+                        {
+                            padded_group(ui, |ui| {
+                                ui.label("Request Body:");
+                                let edit_icon = include_image!("../assets/pen.svg");
+                                if ui
+                                    .add(
+                                        egui::Button::image_and_text(
+                                            egui::Image::new(edit_icon)
+                                                .fit_to_exact_size(Vec2 { x: 16., y: 16. })
+                                                .tint(ui.ctx().style().visuals.text_color()),
+                                            "Edit Body",
+                                        )
+                                        .min_size(Vec2 {
+                                            x: ui.available_width(),
+                                            y: 0.,
+                                        }),
+                                    )
+                                    .clicked()
+                                {
+                                    app.body_editor_open = !app.body_editor_open
+                                };
+                            });
+                        }
+
                         // Headers
                         padded_group(ui, |ui| {
                             ui.label("Request Headers:");
-                            let send_icon = include_image!("../assets/pen.svg");
+                            let edit_icon = include_image!("../assets/pen.svg");
                             if ui
                                 .add(
                                     egui::Button::image_and_text(
-                                        egui::Image::new(send_icon)
+                                        egui::Image::new(edit_icon)
                                             .fit_to_exact_size(Vec2 { x: 16., y: 16. })
                                             .tint(ui.ctx().style().visuals.text_color()),
                                         "Edit Headers",
@@ -294,7 +326,7 @@ pub fn window(app: &mut Reqwestur, ui: &mut egui::Ui) {
                         )
                         .clicked()
                     {
-                        app.request.headers.push(crate::Headers::default());
+                        app.request.headers.push(Header::default());
                     }
 
                     ui.add_space(2.);
@@ -346,6 +378,7 @@ pub fn window(app: &mut Reqwestur, ui: &mut egui::Ui) {
                                                         .margin(5.)
                                                         .hint_text("Header Name"),
                                                     );
+
                                                     ui.add(
                                                         egui::TextEdit::singleline(&mut header.key)
                                                             .desired_width(ui.available_width())
@@ -365,6 +398,74 @@ pub fn window(app: &mut Reqwestur, ui: &mut egui::Ui) {
                 if context.input(|i| i.viewport().close_requested()) {
                     app.headers_editor_open = false;
                 }
+            },
+        );
+    }
+
+    if app.body_editor_open {
+        ui.ctx().show_viewport_immediate(
+            egui::ViewportId::from_hash_of("body_editor"),
+            egui::ViewportBuilder::default()
+                .with_title("Body Editor")
+                .with_inner_size([500.0, 500.0]),
+            |context, _class| {
+                egui::CentralPanel::default().show(ui.ctx(), |ui| {
+                    egui::ComboBox::new("body_type_dropdown", "Request Body Type")
+                        .selected_text(app.request.body_type.to_string())
+                        .show_ui(ui, |ui| {
+                            for body_type in BodyType::values() {
+                                ui.selectable_value(
+                                    &mut app.request.body_type,
+                                    body_type.clone(),
+                                    body_type.to_string(),
+                                );
+                            }
+                        });
+
+                    ui.add_space(2.);
+                    ui.separator();
+                    ui.add_space(2.);
+
+                    if app.request.body_type == BodyType::JSON {
+                        ui.with_layout(egui::Layout::bottom_up(egui::Align::Min), |ui| {
+                            let theme =
+                                syntax_highlighting::CodeTheme::from_memory(ui.ctx(), ui.style());
+
+                            // ui.collapsing("Theme", |ui| {
+                            //     ui.group(|ui| {
+                            //         theme.ui(ui);
+                            //         theme.clone().store_in_memory(ui.ctx());
+                            //     });
+                            // });
+
+                            let mut layouter = |ui: &egui::Ui, buf: &str, _| {
+                                let layout_job = syntax_highlighting::highlight(
+                                    ui.ctx(),
+                                    ui.style(),
+                                    &theme.clone(),
+                                    buf,
+                                    "JSON",
+                                );
+                                ui.fonts(|f| f.layout_job(layout_job))
+                            };
+
+                            // code_view_ui(ui, &theme, &mut app.request.body, "js");
+                            ui.add_sized(
+                                Vec2 {
+                                    x: ui.available_width(),
+                                    y: ui.available_height(),
+                                },
+                                egui::TextEdit::multiline(&mut app.request.body)
+                                    .code_editor()
+                                    .layouter(&mut layouter),
+                            );
+                        });
+                    }
+
+                    if context.input(|i| i.viewport().close_requested()) {
+                        app.body_editor_open = false;
+                    }
+                });
             },
         );
     }
