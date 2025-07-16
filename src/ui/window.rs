@@ -207,7 +207,11 @@ fn menu_panel<'a>(app: &'a mut Reqwestur, max_width: f32) -> impl egui::Widget +
                 top: 2,
                 bottom: 2,
             },
-            fill: egui::Color32::WHITE,
+            fill: if ui.style().visuals.dark_mode {
+                egui::Color32::BLACK
+            } else {
+                egui::Color32::WHITE
+            },
             ..Default::default()
         };
         egui::SidePanel::new(egui::panel::Side::Left, "menu_panel")
