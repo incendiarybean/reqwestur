@@ -7,6 +7,10 @@ use crate::{ui, utils::common};
 #[derive(serde::Deserialize, serde::Serialize, Clone)]
 #[serde(default)]
 pub struct Reqwestur {
+    // Display
+    pub is_dark_mode: bool,
+    pub menu_minimised: bool,
+
     // Request Panel
     pub request_panel_minimised: bool,
     pub request: Request,
@@ -29,6 +33,10 @@ pub struct Reqwestur {
 impl Default for Reqwestur {
     fn default() -> Self {
         Self {
+            // Display
+            is_dark_mode: false,
+            menu_minimised: false,
+
             // Request
             request_panel_minimised: false,
             request: Request::default(),
@@ -58,6 +66,16 @@ impl Reqwestur {
             // The Proxy state needs adjusting as it contains Mutex state which doesn't reimplement well
             let previous_values: Reqwestur =
                 eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
+
+            cc.egui_ctx.all_styles_mut(|style| {
+                style.spacing.button_padding = egui::vec2(5.0, 5.0);
+            });
+
+            cc.egui_ctx.set_theme(if previous_values.is_dark_mode {
+                egui::Theme::Dark
+            } else {
+                egui::Theme::Light
+            });
 
             // Create new app to generate mutables
             return Self {

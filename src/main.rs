@@ -38,10 +38,6 @@ fn main() -> Result<(), eframe::Error> {
                 cc.egui_ctx.set_theme(egui::Theme::Light);
             }
 
-            cc.egui_ctx.style_mut(|style| {
-                style.spacing.button_padding = egui::vec2(5.0, 5.0);
-            });
-
             Ok(Box::new(Reqwestur::new(cc)))
         }),
     )
