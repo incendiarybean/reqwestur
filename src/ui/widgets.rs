@@ -3,15 +3,10 @@ use std::f32::consts::PI;
 
 use crate::utils::reqwestur::Notification;
 
-pub fn display_notification(notification: &Option<Notification>) -> impl egui::Widget {
-    move |ui: &mut egui::Ui| {
-        ui.vertical(|ui| {
-            if let Some(notification) = notification {
-                let Notification { kind, message } = notification;
-                ui.label(egui::RichText::new(message).color(kind.to_colour()));
-            }
-        })
-        .response
+pub fn display_notification(ui: &mut egui::Ui, notification: &Option<Notification>) {
+    if let Some(notification) = notification {
+        let Notification { kind, message } = notification;
+        ui.label(egui::RichText::new(message).color(kind.to_colour()));
     }
 }
 
@@ -133,8 +128,9 @@ pub fn toggle_switch(on: &mut bool) -> impl egui::Widget {
             response.mark_changed();
         }
 
-        response
-            .widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::Checkbox, *on, false, ""));
+        response.widget_info(|| {
+            egui::WidgetInfo::selected(egui::WidgetType::Checkbox, *on, false, "Enable dark mode?")
+        });
 
         if ui.is_rect_visible(rect) {
             let how_on = ui.ctx().animate_bool(response.id, *on);

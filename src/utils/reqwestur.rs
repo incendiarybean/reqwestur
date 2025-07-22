@@ -4,20 +4,26 @@ use eframe::egui::{self, Color32};
 
 use crate::{ui, utils::common};
 
+#[derive(Default, serde::Deserialize, serde::Serialize, Clone, PartialEq, Eq)]
+pub enum AppView {
+    #[default]
+    Request,
+    History,
+}
+
 #[derive(serde::Deserialize, serde::Serialize, Clone)]
 #[serde(default)]
 pub struct Reqwestur {
     // Display
     pub is_dark_mode: bool,
     pub menu_minimised: bool,
+    pub view: AppView,
 
     // Request Panel
-    pub request_panel_minimised: bool,
     pub request: Request,
     pub certificates: Certificates,
 
     // History Panel
-    pub history_panel_minimised: bool,
     pub history: Vec<Request>,
 
     // Editors
@@ -36,14 +42,13 @@ impl Default for Reqwestur {
             // Display
             is_dark_mode: false,
             menu_minimised: false,
+            view: AppView::default(),
 
             // Request
-            request_panel_minimised: false,
             request: Request::default(),
             certificates: Certificates::default(),
 
             // History
-            history_panel_minimised: true,
             history: Vec::new(),
 
             // Editors
