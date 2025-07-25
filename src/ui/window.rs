@@ -78,23 +78,24 @@ fn task_bar(app: &mut Reqwestur) -> impl egui::Widget {
             .show(ui.ctx(), |ui| {
                 ui.scope(|ui| {
                     ui.style_mut().spacing.button_padding = egui::vec2(8., 5.);
-                    ui.style_mut().visuals.override_text_color = Some(egui::Color32::WHITE);
 
-                    ui.style_mut().visuals.widgets.active.weak_bg_fill = egui::Color32::TRANSPARENT;
-                    ui.style_mut().visuals.widgets.hovered.weak_bg_fill =
-                        egui::Color32::TRANSPARENT;
-                    ui.style_mut().visuals.widgets.inactive.weak_bg_fill =
-                        egui::Color32::TRANSPARENT;
-                    ui.style_mut().visuals.widgets.open.weak_bg_fill = egui::Color32::TRANSPARENT;
+                    ui.visuals_mut().widgets.active.weak_bg_fill = egui::Color32::TRANSPARENT;
+                    ui.visuals_mut().widgets.hovered.weak_bg_fill = egui::Color32::TRANSPARENT;
+                    ui.visuals_mut().widgets.inactive.weak_bg_fill = egui::Color32::TRANSPARENT;
+                    ui.visuals_mut().widgets.open.weak_bg_fill = egui::Color32::TRANSPARENT;
 
-                    ui.style_mut().visuals.widgets.open.bg_stroke =
+                    ui.visuals_mut().widgets.open.bg_stroke =
                         egui::Stroke::new(1., egui::Color32::WHITE);
-                    ui.style_mut().visuals.widgets.hovered.bg_stroke =
+                    ui.visuals_mut().widgets.hovered.bg_stroke =
                         egui::Stroke::new(1., egui::Color32::WHITE);
-                    ui.style_mut().visuals.widgets.active.bg_stroke =
+                    ui.visuals_mut().widgets.active.bg_stroke =
                         egui::Stroke::new(1., egui::Color32::WHITE);
-                    ui.style_mut().visuals.widgets.inactive.bg_stroke =
+                    ui.visuals_mut().widgets.inactive.bg_stroke =
                         egui::Stroke::new(1., egui::Color32::TRANSPARENT);
+
+                    ui.visuals_mut().widgets.inactive.fg_stroke.color = egui::Color32::WHITE;
+                    ui.visuals_mut().widgets.active.fg_stroke.color = egui::Color32::WHITE;
+                    ui.visuals_mut().widgets.hovered.fg_stroke.color = egui::Color32::WHITE;
 
                     egui::Frame::new()
                         .inner_margin(egui::Margin {
@@ -143,72 +144,106 @@ fn task_bar(app: &mut Reqwestur) -> impl egui::Widget {
                         })
                         .show(ui, |ui| {
                             ui.horizontal(|ui| {
-                                ui.menu_button("File", |ui| {
-                                    ui.menu_button("Export", |ui| {
-                                        if ui.button("History").clicked() {};
-                                        if ui.button("Requests").clicked() {};
+                                egui::containers::menu::MenuButton::new("File")
+                                    .config(
+                                        egui::containers::menu::MenuConfig::default()
+                                            .close_behavior(
+                                                egui::PopupCloseBehavior::CloseOnClickOutside,
+                                            ),
+                                    )
+                                    .ui(ui, |ui| {
+                                        ui.menu_button("Export", |ui| {
+                                            if ui.button("History").clicked() {};
+                                            if ui.button("Requests").clicked() {};
+                                        });
+
+                                        ui.menu_button("Import", |ui| {
+                                            if ui.button("History").clicked() {};
+                                            if ui.button("Requests").clicked() {};
+                                        });
+
+                                        if ui.button("Save Request").clicked() {};
+
+                                        if ui.button("Exit").clicked() {
+                                            exit(1);
+                                        };
                                     });
 
-                                    ui.menu_button("Import", |ui| {
-                                        if ui.button("History").clicked() {};
-                                        if ui.button("Requests").clicked() {};
-                                    });
+                                egui::containers::menu::MenuButton::new("Accessibility")
+                                    .config(
+                                        egui::containers::menu::MenuConfig::default()
+                                            .close_behavior(
+                                                egui::PopupCloseBehavior::CloseOnClickOutside,
+                                            ),
+                                    )
+                                    .ui(ui, |ui| {
+                                        ui.add_space(2.);
 
-                                    if ui.button("Save Request").clicked() {};
+                                        ui.horizontal(|ui| {
+                                            let selectable_label = ui.add(
+                                                egui::Label::new("Dark Mode")
+                                                    .sense(egui::Sense::all()),
+                                            );
 
-                                    if ui.button("Exit").clicked() {
-                                        exit(1);
-                                    };
-                                });
+                                            if selectable_label.clicked()
+                                                || ui
+                                                    .add(widgets::toggle_switch(
+                                                        &mut app.is_dark_mode,
+                                                    ))
+                                                    .clicked()
+                                            {
+                                                let (text_colour, theme) = if app.is_dark_mode {
+                                                    (egui::Color32::WHITE, egui::Theme::Dark)
+                                                } else {
+                                                    (egui::Color32::BLACK, egui::Theme::Light)
+                                                };
 
-                                ui.menu_button("Accessibility", |ui| {
-                                    ui.add_space(2.);
+                                                ui.ctx().set_theme(theme);
+                                                ui.visuals_mut().override_text_color =
+                                                    Some(text_colour);
+                                            }
+                                        });
 
-                                    ui.horizontal(|ui| {
-                                        ui.label("Dark Mode");
-                                        if ui
-                                            .add(widgets::toggle_switch(&mut app.is_dark_mode))
-                                            .clicked()
-                                        {
-                                            ui.ctx().set_theme(if app.is_dark_mode {
-                                                egui::Theme::Dark
-                                            } else {
-                                                egui::Theme::Light
-                                            });
+                                        ui.add_space(2.);
+                                        ui.separator();
+                                        ui.add_space(2.);
+
+                                        let current_scale_percentage =
+                                            (ui.ctx().pixels_per_point() / 1. * 100.).floor();
+                                        ui.label(format!(
+                                            "Current Scale: {current_scale_percentage}%"
+                                        ));
+
+                                        let zoom_in_btn = egui::Button::new("Zoom In")
+                                            .shortcut_text(ui.ctx().format_shortcut(&ZOOM_IN));
+                                        if ui.add(zoom_in_btn).clicked() {
+                                            ui.ctx().set_pixels_per_point(
+                                                ui.ctx().pixels_per_point() + 0.1,
+                                            );
+                                        }
+
+                                        let zoom_out_btn = egui::Button::new("Zoom Out")
+                                            .shortcut_text(ui.ctx().format_shortcut(&ZOOM_OUT));
+                                        if ui.add(zoom_out_btn).clicked() {
+                                            ui.ctx().set_pixels_per_point(
+                                                ui.ctx().pixels_per_point() - 0.1,
+                                            );
                                         }
                                     });
 
-                                    ui.add_space(2.);
-                                    ui.separator();
-                                    ui.add_space(2.);
-
-                                    let current_scale_percentage =
-                                        (ui.ctx().pixels_per_point() / 1. * 100.).floor();
-                                    ui.label(format!("Current Scale: {current_scale_percentage}%"));
-
-                                    let zoom_in_btn = egui::Button::new("Zoom In")
-                                        .shortcut_text(ui.ctx().format_shortcut(&ZOOM_IN));
-                                    if ui.add(zoom_in_btn).clicked() {
-                                        ui.ctx().set_pixels_per_point(
-                                            ui.ctx().pixels_per_point() + 0.1,
-                                        );
-                                    }
-
-                                    let zoom_out_btn = egui::Button::new("Zoom Out")
-                                        .shortcut_text(ui.ctx().format_shortcut(&ZOOM_OUT));
-                                    if ui.add(zoom_out_btn).clicked() {
-                                        ui.ctx().set_pixels_per_point(
-                                            ui.ctx().pixels_per_point() - 0.1,
-                                        );
-                                    }
-                                });
-
-                                ui.menu_button("Help", |ui| {
-                                    if ui.button("Guidance").clicked() {};
-                                    if ui.button("About").clicked() {
-                                        app.about_modal_open = true;
-                                    };
-                                });
+                                egui::containers::menu::MenuButton::new("Help")
+                                    .config(
+                                        egui::containers::menu::MenuConfig::default()
+                                            .close_behavior(
+                                                egui::PopupCloseBehavior::CloseOnClickOutside,
+                                            ),
+                                    )
+                                    .ui(ui, |ui| {
+                                        if ui.button("Guidance").clicked() {};
+                                        if ui.button("About").clicked() {
+                                            app.about_modal_open = true;
+                                        };
+                                    });
                             });
                         });
                 });
@@ -239,9 +274,9 @@ fn menu_panel<'a>(app: &'a mut Reqwestur, max_width: f32) -> impl egui::Widget +
             .resizable(false)
             .show(ui.ctx(), |ui| {
                 if app.menu_minimised {
-                    ui.set_width(23.);
+                    ui.set_width(24.);
                 } else {
-                    ui.set_width(max_width - 58.);
+                    ui.set_width(if max_width >= 300. { 300. } else { max_width });
                 }
 
                 let txt_colour = if ui.style().visuals.dark_mode {
@@ -274,6 +309,7 @@ fn menu_panel<'a>(app: &'a mut Reqwestur, max_width: f32) -> impl egui::Widget +
                                 "Make a Request",
                                 "Make a new Request",
                                 app.menu_minimised,
+                                app.view == AppView::Request,
                             ))
                             .clicked()
                         {
@@ -287,6 +323,7 @@ fn menu_panel<'a>(app: &'a mut Reqwestur, max_width: f32) -> impl egui::Widget +
                                 "Historic Requests",
                                 "View Historic Requests",
                                 app.menu_minimised,
+                                app.view == AppView::History,
                             ))
                             .clicked()
                         {
@@ -595,24 +632,25 @@ fn viewer_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
                                 .auto_shrink(false)
                                 .max_height(ui.available_height())
                                 .max_width(ui.available_width())
-                                .drag_to_scroll(false)
+                                .scroll_source(egui::scroll_area::ScrollSource::MOUSE_WHEEL)
                                 .show(ui, |ui| {
                                     let theme =
                                         egui_extras::syntax_highlighting::CodeTheme::from_memory(
                                             ui.ctx(),
                                             ui.style(),
                                         );
-                                    let mut layouter = |ui: &egui::Ui, buf: &str, _| {
-                                        let layout_job =
-                                            egui_extras::syntax_highlighting::highlight(
-                                                ui.ctx(),
-                                                ui.style(),
-                                                &theme.clone(),
-                                                buf,
-                                                "json",
-                                            );
-                                        ui.fonts(|f| f.layout_job(layout_job))
-                                    };
+                                    let mut layouter =
+                                        |ui: &egui::Ui, buf: &dyn egui::TextBuffer, _| {
+                                            let layout_job =
+                                                egui_extras::syntax_highlighting::highlight(
+                                                    ui.ctx(),
+                                                    ui.style(),
+                                                    &theme.clone(),
+                                                    buf.as_str(),
+                                                    "json",
+                                                );
+                                            ui.fonts(|f| f.layout_job(layout_job))
+                                        };
 
                                     ui.add(
                                         egui::TextEdit::multiline(&mut app.request.response.body)
@@ -738,18 +776,95 @@ fn payload_editor(app: &mut Reqwestur, ui: &mut egui::Ui) {
                         BodyType::EMPTY => {
                             app.request.body = None;
                         }
+                        BodyType::TEXT => todo!(),
+                        BodyType::XWWWFORMURLENCODED => {
+                            egui::CentralPanel::default().show(ui.ctx(), |ui| {
+                                let add_icon = egui::include_image!("../assets/plus.svg");
+                                if ui
+                                    .add(widgets::default_button(
+                                        Some(add_icon),
+                                        "New Field",
+                                        ui.visuals().text_color(),
+                                        ui.available_width(),
+                                    ))
+                                    .clicked()
+                                {
+                                    app.request
+                                        .form_data
+                                        .push((String::default(), String::default()));
+                                }
+
+                                ui.add_space(2.);
+                                ui.separator();
+                                ui.add_space(2.);
+
+                                egui::ScrollArea::vertical()
+                                    .auto_shrink(false)
+                                    .max_height(ui.available_height())
+                                    .max_width(ui.available_width())
+                                    .show_rows(
+                                        ui,
+                                        18.,
+                                        app.request.form_data.len(),
+                                        |ui, row_range| {
+                                            for row in row_range {
+                                                ui.group(|ui| {
+                                                    ui.with_layout(
+                                                        egui::Layout::right_to_left(
+                                                            egui::Align::Min,
+                                                        ),
+                                                        |ui| {
+                                                            if let Some((name, value)) =
+                                                                app.request.form_data.get_mut(row)
+                                                            {
+                                                                let name_editor =
+                                                                    egui::TextEdit::singleline(
+                                                                        name,
+                                                                    )
+                                                                    .hint_text("Field Name")
+                                                                    .margin(5.)
+                                                                    .vertical_align(
+                                                                        egui::Align::Center,
+                                                                    );
+
+                                                                let value_editor =
+                                                                    egui::TextEdit::singleline(
+                                                                        value,
+                                                                    )
+                                                                    .hint_text("Field Value")
+                                                                    .margin(5.)
+                                                                    .min_size(egui::vec2(
+                                                                        ui.available_width() / 2.
+                                                                            - 5.,
+                                                                        25.,
+                                                                    ))
+                                                                    .vertical_align(
+                                                                        egui::Align::Center,
+                                                                    );
+
+                                                                ui.add(value_editor);
+                                                                ui.add(name_editor);
+                                                            }
+                                                        },
+                                                    );
+                                                });
+                                            }
+                                        },
+                                    );
+                            });
+                        }
                         BodyType::MULTIPART => todo!(),
                         BodyType::JSON => {
                             let theme = egui_extras::syntax_highlighting::CodeTheme::from_memory(
                                 ui.ctx(),
                                 ui.style(),
                             );
-                            let mut layouter = |ui: &egui::Ui, buf: &str, _| {
+                            let mut layouter = |ui: &egui::Ui, buf: &dyn egui::TextBuffer, _| {
                                 let layout_job = egui_extras::syntax_highlighting::highlight(
                                     ui.ctx(),
                                     ui.style(),
                                     &theme.clone(),
-                                    buf,
+                                    buf.as_str(),
                                     "json",
                                 );
                                 ui.fonts(|f| f.layout_job(layout_job))

@@ -1,4 +1,4 @@
-use eframe::egui::{self};
+use eframe::egui::{self, Color32};
 use std::f32::consts::PI;
 
 use crate::utils::reqwestur::Notification;
@@ -32,7 +32,7 @@ pub fn default_button<'a>(
     btn
 }
 
-pub fn draw_vertical_text(ui: &mut egui::Ui, text: &str) {
+pub fn _draw_vertical_text(ui: &mut egui::Ui, text: &str) {
     let rect = ui.available_rect_before_wrap();
     let painter = ui.painter_at(rect);
     let txt_colour = ui.ctx().theme().default_visuals().text_color();
@@ -70,7 +70,7 @@ pub fn padded_group<F: FnOnce(&mut egui::Ui)>(ui: &mut egui::Ui, content: F) {
 
 pub enum MinimiserDirection {
     LeftToRight,
-    RightToLeft,
+    _RightToLeft,
 }
 
 pub fn minimiser(direction: MinimiserDirection, current_value: bool) -> impl egui::Widget {
@@ -80,7 +80,7 @@ pub fn minimiser(direction: MinimiserDirection, current_value: bool) -> impl egu
 
         let (minimise, expand) = match direction {
             MinimiserDirection::LeftToRight => (chevron_right, chevron_left),
-            MinimiserDirection::RightToLeft => (chevron_left, chevron_right),
+            MinimiserDirection::_RightToLeft => (chevron_left, chevron_right),
         };
 
         let current_icon = if current_value.clone() {
@@ -162,6 +162,7 @@ pub fn side_menu_button<'a>(
     text: &'static str,
     alt_text: &'static str,
     small: bool,
+    active: bool,
 ) -> impl egui::Widget {
     move |ui: &mut egui::Ui| {
         if small {
@@ -172,7 +173,8 @@ pub fn side_menu_button<'a>(
                         .alt_text(alt_text)
                         .corner_radius(5.),
                 )
-                .tint(ui.visuals().text_color()),
+                .tint(ui.visuals().text_color())
+                .selected(active),
             )
         } else {
             ui.add(
@@ -184,7 +186,8 @@ pub fn side_menu_button<'a>(
                     egui::RichText::new(text).size(16.),
                 )
                 .min_size(egui::vec2(ui.available_width(), 32.))
-                .corner_radius(5.),
+                .corner_radius(5.)
+                .selected(active),
             )
         }
     }

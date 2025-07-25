@@ -76,6 +76,21 @@ impl Reqwestur {
                 style.spacing.button_padding = egui::vec2(5.0, 5.0);
             });
 
+            cc.egui_ctx.add_font(egui::epaint::text::FontInsert::new(
+                "OpenSans",
+                egui::FontData::from_static(include_bytes!("../assets/OpenSans-Medium.ttf")),
+                vec![
+                    egui::epaint::text::InsertFontFamily {
+                        family: egui::FontFamily::Monospace,
+                        priority: egui::epaint::text::FontPriority::Highest,
+                    },
+                    egui::epaint::text::InsertFontFamily {
+                        family: egui::FontFamily::Proportional,
+                        priority: egui::epaint::text::FontPriority::Highest,
+                    },
+                ],
+            ));
+
             cc.egui_ctx.set_theme(if previous_values.is_dark_mode {
                 egui::Theme::Dark
             } else {
@@ -109,6 +124,7 @@ impl Reqwestur {
             headers,
             address,
             body,
+            form_data,
             body_type,
             sendable: _,
             response: _,
@@ -182,7 +198,11 @@ impl Reqwestur {
 
         if [BodyType::JSON, BodyType::MULTIPART].contains(&self.request.body_type) {
             built_request = match body_type {
-                BodyType::MULTIPART => built_request.multipart(todo!()),
+                BodyType::MULTIPART => {
+                    //built_request.multipart(todo!())
+                    todo!()
+                }
+                BodyType::XWWWFORMURLENCODED => built_request.form(&form_data),
                 BodyType::JSON => {
                     if let Some(body) = body {
                         built_request.body(body)
@@ -350,18 +370,22 @@ pub struct Response {
 pub enum BodyType {
     #[default]
     EMPTY,
+    TEXT,
     MULTIPART,
+    XWWWFORMURLENCODED,
     JSON,
 }
 
 impl BodyType {
-    const OPTIONS: [Self; 3] = [Self::MULTIPART, Self::JSON, Self::EMPTY];
+    const OPTIONS: [Self; 3] = [Self::XWWWFORMURLENCODED, Self::JSON, Self::EMPTY];
 
     pub fn to_string(&self) -> String {
         let str = match self {
+            BodyType::XWWWFORMURLENCODED => "application/x-www-form-urlencoded",
             BodyType::MULTIPART => "multipart/form-data",
             BodyType::JSON => "application/json",
-            BodyType::EMPTY => "text/plain",
+            BodyType::TEXT => "text/plain",
+            BodyType::EMPTY => "empty",
         };
 
         str.to_string()
@@ -433,6 +457,7 @@ pub struct Request {
     pub address: Address,
 
     pub body: Option<String>,
+    pub form_data: Vec<(String, String)>,
     pub body_type: BodyType,
 
     pub sendable: bool,
