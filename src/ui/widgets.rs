@@ -1,4 +1,4 @@
-use eframe::egui::{self, Color32};
+use eframe::egui::{self};
 use std::f32::consts::PI;
 
 use crate::utils::reqwestur::Notification;
@@ -27,7 +27,8 @@ pub fn default_button<'a>(
     } else {
         egui::Button::new(txt)
     }
-    .min_size(egui::vec2(width, 10.));
+    .min_size(egui::vec2(width, 32.))
+    .corner_radius(5.);
 
     btn
 }
@@ -56,16 +57,19 @@ pub fn _draw_vertical_text(ui: &mut egui::Ui, text: &str) {
     painter.add(label);
 }
 
-pub fn padded_group<F: FnOnce(&mut egui::Ui)>(ui: &mut egui::Ui, content: F) {
-    ui.group(|ui| {
-        ui.add_space(2.);
+pub fn padded_group<F: FnOnce(&mut egui::Ui)>(content: F) -> impl egui::Widget {
+    move |ui: &mut egui::Ui| {
+        ui.group(|ui| {
+            ui.add_space(2.);
 
-        ui.allocate_space(egui::vec2(ui.available_width(), 0.));
+            ui.allocate_space(egui::vec2(ui.available_width(), 0.));
 
-        content(ui);
+            content(ui);
 
-        ui.add_space(2.);
-    });
+            ui.add_space(2.);
+        })
+        .response
+    }
 }
 
 pub enum MinimiserDirection {

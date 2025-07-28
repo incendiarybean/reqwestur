@@ -1,11 +1,12 @@
 use eframe::egui::{
     self,
     gui_zoom::kb_shortcuts::{ZOOM_IN, ZOOM_OUT},
+    scroll_area::ScrollSource,
 };
 use std::process::exit;
 
 const PRIMARY: &'static str = "#1b3c79";
-const SECONDARY: &'static str = "#112e65";
+const _SECONDARY: &'static str = "#112e65";
 
 use crate::{
     ui::widgets::{self, default_button},
@@ -287,19 +288,13 @@ fn menu_panel<'a>(app: &'a mut Reqwestur, max_width: f32) -> impl egui::Widget +
                 ui.style_mut().visuals.override_text_color = Some(txt_colour);
                 ui.style_mut().spacing.button_padding = egui::vec2(8., 5.);
 
-                ui.with_layout(egui::Layout::bottom_up(egui::Align::Min), |ui| {
-                    ui.add_space(5.);
-                    if ui
-                        .add(widgets::minimiser(
-                            widgets::MinimiserDirection::LeftToRight,
-                            app.menu_minimised,
-                        ))
-                        .clicked()
-                    {
-                        app.menu_minimised = !app.menu_minimised;
-                    }
-
-                    ui.vertical(|ui| {
+                egui::ScrollArea::vertical()
+                    .scroll_source(ScrollSource {
+                        scroll_bar: true,
+                        drag: false,
+                        mouse_wheel: true,
+                    })
+                    .show(ui, |ui| {
                         ui.add_space(5.);
 
                         let request_icon = egui::include_image!("../assets/globe.svg");
@@ -317,20 +312,44 @@ fn menu_panel<'a>(app: &'a mut Reqwestur, max_width: f32) -> impl egui::Widget +
                         };
 
                         let history_icon = egui::include_image!("../assets/undo_history.svg");
-                        if ui
-                            .add(widgets::side_menu_button(
-                                history_icon,
-                                "Historic Requests",
-                                "View Historic Requests",
-                                app.menu_minimised,
-                                app.view == AppView::History,
-                            ))
-                            .clicked()
-                        {
+                        let history_btn_rect = ui.add(widgets::side_menu_button(
+                            history_icon,
+                            "Historic Requests",
+                            "View Historic Requests",
+                            app.menu_minimised,
+                            app.view == AppView::History,
+                        ));
+
+                        if history_btn_rect.clicked() {
                             app.view = AppView::History;
                         }
+
+                        ui.allocate_ui_with_layout(
+                            egui::vec2(
+                                ui.available_width(),
+                                if ui.available_height() - history_btn_rect.rect.height()
+                                    <= history_btn_rect.rect.height()
+                                {
+                                    ui.available_height() + history_btn_rect.rect.height()
+                                } else {
+                                    ui.available_height()
+                                },
+                            ),
+                            egui::Layout::bottom_up(egui::Align::Min),
+                            |ui| {
+                                ui.add_space(5.);
+                                if ui
+                                    .add(widgets::minimiser(
+                                        widgets::MinimiserDirection::LeftToRight,
+                                        app.menu_minimised,
+                                    ))
+                                    .clicked()
+                                {
+                                    app.menu_minimised = !app.menu_minimised;
+                                }
+                            },
+                        );
                     });
-                });
             })
             .response
     }
@@ -345,112 +364,94 @@ fn request_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
 
                 app.check_sendable();
 
-                ui.with_layout(
-                    egui::Layout::bottom_up(egui::Align::Min),
-                    |ui: &mut egui::Ui| {
-                        ui.add_space(10.);
+                egui::ScrollArea::vertical()
+                    .scroll_source(ScrollSource {
+                        scroll_bar: true,
+                        drag: false,
+                        mouse_wheel: true,
+                    })
+                    .show(ui, |ui| {
+                        ui.add_space(1.);
 
-                        let send_icon = egui::include_image!("../assets/paper_plane.svg");
-                        if ui
-                            .add_enabled(
-                                app.request.sendable,
-                                widgets::default_button(
-                                    Some(send_icon),
-                                    "Send!",
-                                    ui.visuals().text_color(),
-                                    ui.available_width(),
-                                ),
-                            )
-                            .clicked()
-                        {
-                            let _ = app.send();
-                        }
-
-                        widgets::display_notification(ui, &app.request.notification);
-
-                        ui.vertical(|ui| {
-                            ui.add_space(1.);
-
-                            widgets::padded_group(ui, |ui| {
-                                ui.label(egui::RichText::new("Request URL").size(14.));
-                                if ui
-                                    .add(
-                                        egui::TextEdit::singleline(&mut app.request.address.uri)
-                                            .min_size(egui::vec2(ui.available_width(), 10.))
-                                            .hint_text("http://test.com")
-                                            .margin(5.),
-                                    )
-                                    .changed()
-                                {
-                                    if let Err(error) =
-                                        reqwest::Url::parse(&app.request.address.uri)
-                                    {
-                                        app.request.address.notification = Some(Notification {
-                                            kind: NotificationKind::ERROR,
-                                            message: format!("URL cannot be parsed: {}!", error),
-                                        })
-                                    } else {
-                                        app.request.address.notification = None;
-                                    }
+                        ui.add(widgets::padded_group(|ui| {
+                            ui.label(egui::RichText::new("Request URL").size(14.));
+                            if ui
+                                .add(
+                                    egui::TextEdit::singleline(&mut app.request.address.uri)
+                                        .min_size(egui::vec2(ui.available_width(), 10.))
+                                        .hint_text("http://test.com")
+                                        .margin(5.),
+                                )
+                                .changed()
+                            {
+                                if let Err(error) = reqwest::Url::parse(&app.request.address.uri) {
+                                    app.request.address.notification = Some(Notification {
+                                        kind: NotificationKind::ERROR,
+                                        message: format!("URL cannot be parsed: {}!", error),
+                                    })
+                                } else {
+                                    app.request.address.notification = None;
                                 }
+                            }
 
-                                widgets::display_notification(ui, &app.request.address.notification)
-                            });
+                            widgets::display_notification(ui, &app.request.address.notification)
+                        }));
 
-                            widgets::padded_group(ui, |ui| {
-                                ui.label(egui::RichText::new("Request Method").size(14.));
+                        ui.add(widgets::padded_group(|ui| {
+                            ui.label(egui::RichText::new("Request Method").size(14.));
 
-                                egui::ComboBox::new("request_method", "Select the Method")
-                                    .selected_text(app.request.method.to_string())
-                                    .show_ui(ui, |ui| {
-                                        for method in Method::values() {
-                                            app.request.body_type = BodyType::EMPTY;
-                                            app.request.body = None;
+                            egui::ComboBox::new("request_method", "Select the Method")
+                                .selected_text(app.request.method.to_string())
+                                .show_ui(ui, |ui| {
+                                    for method in Method::values() {
+                                        app.request.body_type = BodyType::EMPTY;
+                                        app.request.body = None;
 
-                                            ui.selectable_value(
-                                                &mut app.request.method,
-                                                method.clone(),
-                                                method.to_string(),
-                                            );
-                                        }
-                                    });
-
-                                if [Method::PATCH, Method::POST, Method::PUT]
-                                    .contains(&app.request.method)
-                                {
-                                    let edit_icon = egui::include_image!("../assets/pen.svg");
-                                    if ui
-                                        .add(widgets::default_button(
-                                            Some(edit_icon),
-                                            "Payload Management",
-                                            ui.visuals().text_color(),
-                                            ui.available_width(),
-                                        ))
-                                        .clicked()
-                                    {
-                                        app.payload_editor_open = true;
+                                        ui.selectable_value(
+                                            &mut app.request.method,
+                                            method.clone(),
+                                            method.to_string(),
+                                        );
                                     }
-                                }
-                            });
+                                });
 
-                            widgets::padded_group(ui, |ui| {
-                                ui.label(egui::RichText::new("Request Headers").size(14.));
-
+                            if [Method::PATCH, Method::POST, Method::PUT]
+                                .contains(&app.request.method)
+                            {
                                 let edit_icon = egui::include_image!("../assets/pen.svg");
                                 if ui
                                     .add(widgets::default_button(
                                         Some(edit_icon),
-                                        "Header Management",
+                                        "Payload Management",
                                         ui.visuals().text_color(),
                                         ui.available_width(),
                                     ))
                                     .clicked()
                                 {
-                                    app.headers_editor_open = true;
+                                    app.payload_editor_open = true;
                                 }
-                            });
+                            }
+                        }));
 
-                            widgets::padded_group(ui, |ui| {
+                        ui.add(widgets::padded_group(|ui| {
+                            ui.label(egui::RichText::new("Request Headers").size(14.));
+
+                            let edit_icon = egui::include_image!("../assets/pen.svg");
+                            if ui
+                                .add(widgets::default_button(
+                                    Some(edit_icon),
+                                    "Header Management",
+                                    ui.visuals().text_color(),
+                                    ui.available_width(),
+                                ))
+                                .clicked()
+                            {
+                                app.headers_editor_open = true;
+                            }
+                        }));
+
+                        let size = ui
+                            .add(widgets::padded_group(|ui| {
                                 ui.label(egui::RichText::new("Certificates").size(14.));
 
                                 if ui
@@ -478,10 +479,42 @@ fn request_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
                                 }
 
                                 widgets::display_notification(ui, &app.certificates.notification)
-                            });
-                        });
-                    },
-                );
+                            }))
+                            .rect;
+
+                        ui.allocate_ui_with_layout(
+                            egui::vec2(
+                                ui.available_width(),
+                                if ui.available_height() - size.height() <= size.height() {
+                                    ui.available_height() + size.height()
+                                } else {
+                                    ui.available_height()
+                                },
+                            ),
+                            egui::Layout::bottom_up(egui::Align::Min),
+                            |ui: &mut egui::Ui| {
+                                ui.add_space(5.);
+
+                                let send_icon = egui::include_image!("../assets/paper_plane.svg");
+                                if ui
+                                    .add_enabled(
+                                        app.request.sendable,
+                                        widgets::default_button(
+                                            Some(send_icon),
+                                            "Send!",
+                                            ui.visuals().text_color(),
+                                            ui.available_width(),
+                                        ),
+                                    )
+                                    .clicked()
+                                {
+                                    let _ = app.send();
+                                }
+
+                                widgets::display_notification(ui, &app.request.notification);
+                            },
+                        );
+                    });
             })
             .response
     }
@@ -518,7 +551,7 @@ fn history_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
                             .show_rows(ui, 18., app.history.len(), |ui, row_range| {
                                 for row in row_range {
                                     if let Some(row_data) = app.history.get(row) {
-                                        widgets::padded_group(ui, |ui| {
+                                        ui.add(widgets::padded_group(|ui| {
                                             ui.horizontal(|ui| {
                                                 let open_icon = egui::include_image!(
                                                     "../assets/folder_open.svg"
@@ -571,7 +604,7 @@ fn history_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
                                                     );
                                                 });
                                             });
-                                        });
+                                        }));
                                     }
                                 }
                             });
@@ -593,7 +626,7 @@ fn viewer_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
                     if !enabled_editor {
                         ui.label("You haven't made a request yet.");
                     } else {
-                        widgets::padded_group(ui, |ui| {
+                        ui.add(widgets::padded_group(|ui| {
                             ui.horizontal(|ui| {
                                 let status_colour =
                                     utils::common::status_colour(&response.status_code);
@@ -604,9 +637,9 @@ fn viewer_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
                                         .color(status_colour),
                                 );
                             });
-                        });
+                        }));
 
-                        widgets::padded_group(ui, |ui| {
+                        ui.add(widgets::padded_group(|ui| {
                             egui::CollapsingHeader::new("Response Headers").show_unindented(
                                 ui,
                                 |ui| {
@@ -625,7 +658,7 @@ fn viewer_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
                                     }
                                 },
                             );
-                        });
+                        }));
 
                         ui.group(|ui| {
                             egui::ScrollArea::both()
@@ -962,7 +995,7 @@ fn certificate_editor(app: &mut Reqwestur, ui: &mut egui::Ui) {
                     }
 
                     ui.vertical(|ui| {
-                        widgets::padded_group(ui, |ui| {
+                        ui.add(widgets::padded_group(|ui| {
                             let file_name = match app.certificates.file_path.file_name() {
                                 Some(file_name) => {
                                     file_name.to_str().unwrap_or("Error reading file name.")
@@ -1010,10 +1043,10 @@ fn certificate_editor(app: &mut Reqwestur, ui: &mut egui::Ui) {
                                     };
                                 }
                             }
-                        });
+                        }));
 
                         if app.certificates.file_path.exists() {
-                            widgets::padded_group(ui, |ui| {
+                            ui.add(widgets::padded_group(|ui| {
                                 ui.label("Certificate Passphrase:");
                                 ui.add_sized(
                                     egui::vec2(ui.available_width(), 20.),
@@ -1021,7 +1054,7 @@ fn certificate_editor(app: &mut Reqwestur, ui: &mut egui::Ui) {
                                         .margin(5.)
                                         .password(true),
                                 );
-                            });
+                            }));
                         }
                     });
                 });
