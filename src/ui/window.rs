@@ -357,8 +357,14 @@ fn menu_panel<'a>(app: &'a mut Reqwestur, max_width: f32) -> impl egui::Widget +
 
 fn request_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
     move |ui: &mut egui::Ui| {
+        // Adjust the ensure the menu is always visible, but so is the content
+        let size_adjust = 250.;
+
+        // Create a Menu Panel
         egui::SidePanel::new(egui::panel::Side::Left, "request_panel")
-            .resizable(false)
+            .resizable(true)
+            .min_width(size_adjust)
+            .max_width(ui.available_width() - size_adjust)
             .show(ui.ctx(), |ui| {
                 ui.add_space(5.);
 
@@ -617,9 +623,14 @@ fn history_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
 
 fn viewer_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
     move |ui: &mut egui::Ui| {
+        let frame = egui::frame::Frame {
+            outer_margin: 10.0.into(),
+            ..Default::default()
+        };
         egui::CentralPanel::default()
+            .frame(frame)
             .show(ui.ctx(), |ui| {
-                ui.vertical(|ui| {
+                egui::ScrollArea::vertical().show(ui, |ui| {
                     let enabled_editor = !app.request.response.body.is_empty();
                     let response = app.request.response.clone();
 
@@ -643,56 +654,58 @@ fn viewer_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
                             egui::CollapsingHeader::new("Response Headers").show_unindented(
                                 ui,
                                 |ui| {
-                                    for (name, value) in &mut app.request.response.headers {
-                                        ui.with_layout(
-                                            egui::Layout::right_to_left(egui::Align::Min),
-                                            |ui| {
-                                                ui.add(
-                                                    egui::TextEdit::singleline(value)
-                                                        .desired_width(ui.available_width() / 2.)
-                                                        .margin(5.),
-                                                );
-                                                ui.add(egui::TextEdit::singleline(name).margin(5.));
-                                            },
-                                        );
-                                    }
+                                    egui::ScrollArea::vertical().show(ui, |ui| {
+                                        for (name, value) in &mut app.request.response.headers {
+                                            ui.with_layout(
+                                                egui::Layout::right_to_left(egui::Align::Min),
+                                                |ui| {
+                                                    ui.add(
+                                                        egui::TextEdit::singleline(value)
+                                                            .desired_width(
+                                                                ui.available_width() / 2.,
+                                                            )
+                                                            .margin(5.),
+                                                    );
+                                                    ui.add(
+                                                        egui::TextEdit::singleline(name)
+                                                            .desired_width(ui.available_width())
+                                                            .margin(5.),
+                                                    );
+                                                },
+                                            );
+                                        }
+                                    });
                                 },
                             );
                         }));
 
-                        ui.group(|ui| {
-                            egui::ScrollArea::both()
-                                .auto_shrink(false)
-                                .max_height(ui.available_height())
-                                .max_width(ui.available_width())
-                                .scroll_source(egui::scroll_area::ScrollSource::MOUSE_WHEEL)
-                                .show(ui, |ui| {
-                                    let theme =
-                                        egui_extras::syntax_highlighting::CodeTheme::from_memory(
-                                            ui.ctx(),
-                                            ui.style(),
-                                        );
-                                    let mut layouter =
-                                        |ui: &egui::Ui, buf: &dyn egui::TextBuffer, _| {
-                                            let layout_job =
-                                                egui_extras::syntax_highlighting::highlight(
-                                                    ui.ctx(),
-                                                    ui.style(),
-                                                    &theme.clone(),
-                                                    buf.as_str(),
-                                                    "json",
-                                                );
-                                            ui.fonts(|f| f.layout_job(layout_job))
-                                        };
+                        ui.add(widgets::padded_group(|ui| {
+                            let theme = egui_extras::syntax_highlighting::CodeTheme::from_memory(
+                                ui.ctx(),
+                                ui.style(),
+                            );
+                            let mut layouter = |ui: &egui::Ui, buf: &dyn egui::TextBuffer, _| {
+                                let mut layout_job = egui_extras::syntax_highlighting::highlight(
+                                    ui.ctx(),
+                                    ui.style(),
+                                    &theme.clone(),
+                                    buf.as_str(),
+                                    "json",
+                                );
 
-                                    ui.add(
-                                        egui::TextEdit::multiline(&mut app.request.response.body)
-                                            .code_editor()
-                                            .layouter(&mut layouter)
-                                            .desired_width(ui.available_width()),
-                                    );
-                                });
-                        });
+                                // Don't allow the wrap to reach the end of the TextEdit
+                                layout_job.wrap.max_width = ui.available_width() - 20.;
+
+                                ui.fonts(|f| f.layout_job(layout_job))
+                            };
+
+                            ui.add(
+                                egui::TextEdit::multiline(&mut app.request.response.body)
+                                    .code_editor()
+                                    .layouter(&mut layouter)
+                                    .desired_width(ui.available_width()),
+                            );
+                        }));
                     }
                 });
             })
@@ -1026,15 +1039,12 @@ fn certificate_editor(app: &mut Reqwestur, ui: &mut egui::Ui) {
                             if app.certificates.file_path.exists() {
                                 let bin_icon = egui::include_image!("../assets/trash.svg");
                                 if ui
-                                    .add_enabled(
-                                        app.certificates.status == CertificatesStatus::OK,
-                                        default_button(
-                                            Some(bin_icon),
-                                            "Remove PFX.",
-                                            ui.visuals().text_color(),
-                                            ui.available_width(),
-                                        ),
-                                    )
+                                    .add(default_button(
+                                        Some(bin_icon),
+                                        "Remove PFX.",
+                                        ui.visuals().text_color(),
+                                        ui.available_width(),
+                                    ))
                                     .clicked()
                                 {
                                     app.certificates = Certificates {
