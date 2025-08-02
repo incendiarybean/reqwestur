@@ -7,14 +7,16 @@ use crate::{ui, utils::common};
 #[derive(Default, serde::Deserialize, serde::Serialize, Clone, PartialEq, Eq)]
 pub enum AppView {
     #[default]
+    Main,
     Request,
+    Saved,
     History,
 }
 
 #[derive(serde::Deserialize, serde::Serialize, Clone)]
 #[serde(default)]
 pub struct Reqwestur {
-    // Display
+    // Display & Navigation
     pub is_dark_mode: bool,
     pub menu_minimised: bool,
     pub view: AppView,
@@ -39,7 +41,7 @@ pub struct Reqwestur {
 impl Default for Reqwestur {
     fn default() -> Self {
         Self {
-            // Display
+            // Display & Navigation
             is_dark_mode: false,
             menu_minimised: false,
             view: AppView::default(),
@@ -308,6 +310,7 @@ impl eframe::App for Reqwestur {
     }
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        let shortcuts = AppShortcuts::default();
         let panel_frame = egui::Frame {
             fill: ctx.style().visuals.window_fill(),
             stroke: egui::Stroke::new(0., egui::Color32::LIGHT_GRAY),
@@ -319,12 +322,30 @@ impl eframe::App for Reqwestur {
         egui::CentralPanel::default()
             .frame(panel_frame)
             .show(ctx, |ui| {
-                ui::window::window(self, ui);
+                ui::window::window(self, ui, shortcuts);
             });
     }
 
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         eframe::set_value(storage, eframe::APP_KEY, self);
+    }
+}
+
+pub struct AppShortcuts {
+    pub save: egui::KeyboardShortcut,
+    pub new: egui::KeyboardShortcut,
+    pub history: egui::KeyboardShortcut,
+    pub open: egui::KeyboardShortcut,
+}
+
+impl Default for AppShortcuts {
+    fn default() -> Self {
+        Self {
+            save: egui::KeyboardShortcut::new(egui::Modifiers::CTRL, egui::Key::S),
+            new: egui::KeyboardShortcut::new(egui::Modifiers::CTRL, egui::Key::N),
+            history: egui::KeyboardShortcut::new(egui::Modifiers::CTRL, egui::Key::H),
+            open: egui::KeyboardShortcut::new(egui::Modifiers::CTRL, egui::Key::O),
+        }
     }
 }
 
