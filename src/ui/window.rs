@@ -207,17 +207,12 @@ fn task_bar(app: &mut Reqwestur) -> impl egui::Widget {
                                         ui.add_space(2.);
 
                                         ui.horizontal(|ui| {
-                                            let selectable_label = ui.add(
-                                                egui::Label::new("Dark Mode")
-                                                    .sense(egui::Sense::all()),
-                                            );
-
-                                            if selectable_label.clicked()
-                                                || ui
-                                                    .add(widgets::toggle_switch(
-                                                        &mut app.is_dark_mode,
-                                                    ))
-                                                    .clicked()
+                                            if ui
+                                                .add(widgets::toggle_switch(
+                                                    &mut app.is_dark_mode,
+                                                    "Dark Mode",
+                                                ))
+                                                .changed()
                                             {
                                                 let (text_colour, theme) = if app.is_dark_mode {
                                                     (egui::Color32::WHITE, egui::Theme::Dark)
@@ -337,7 +332,7 @@ fn menu_panel<'a>(app: &'a mut Reqwestur, max_width: f32) -> impl egui::Widget +
                             app.view = AppView::Main;
                         };
 
-                        let request_icon = egui::include_image!("../assets/globe.svg");
+                        let request_icon = egui::include_image!("../assets/create.svg");
                         if ui
                             .add(widgets::side_menu_button(
                                 request_icon,
@@ -457,7 +452,9 @@ fn request_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
                                     }
                                 }
 
-                                widgets::display_notification(ui, &app.request.address.notification)
+                                if let Some(notification) = &app.request.address.notification {
+                                    ui.add(widgets::notification(notification));
+                                }
                             }));
 
                             ui.add(widgets::padded_group(|ui| {
@@ -486,7 +483,6 @@ fn request_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
                                         .add(widgets::default_button(
                                             Some(edit_icon),
                                             "Payload Management",
-                                            ui.visuals().text_color(),
                                             ui.available_width(),
                                         ))
                                         .clicked()
@@ -504,7 +500,6 @@ fn request_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
                                     .add(widgets::default_button(
                                         Some(edit_icon),
                                         "Header Management",
-                                        ui.visuals().text_color(),
                                         ui.available_width(),
                                     ))
                                     .clicked()
@@ -535,7 +530,6 @@ fn request_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
                                             .add(widgets::default_button(
                                                 Some(edit_icon),
                                                 "Certificate Management",
-                                                ui.visuals().text_color(),
                                                 ui.available_width(),
                                             ))
                                             .clicked()
@@ -544,10 +538,9 @@ fn request_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
                                         }
                                     }
 
-                                    widgets::display_notification(
-                                        ui,
-                                        &app.certificates.notification,
-                                    )
+                                    if let Some(notification) = &app.certificates.notification {
+                                        ui.add(widgets::notification(notification));
+                                    }
                                 }))
                                 .rect;
 
@@ -572,7 +565,6 @@ fn request_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
                                             widgets::default_button(
                                                 Some(send_icon),
                                                 "Send!",
-                                                ui.visuals().text_color(),
                                                 ui.available_width(),
                                             ),
                                         )
@@ -581,7 +573,9 @@ fn request_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
                                         let _ = app.send();
                                     }
 
-                                    widgets::display_notification(ui, &app.request.notification);
+                                    if let Some(notification) = &app.request.notification {
+                                        ui.add(widgets::notification(notification));
+                                    }
                                 },
                             );
                         });
@@ -604,7 +598,6 @@ fn history_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
                             .add(widgets::default_button(
                                 Some(bin_icon),
                                 "Clear History",
-                                ui.visuals().text_color(),
                                 ui.available_width(),
                             ))
                             .clicked()
@@ -690,87 +683,89 @@ fn home_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
     move |ui: &mut egui::Ui| {
         egui::CentralPanel::default()
             .show(ui.ctx(), |ui| {
-                ui.vertical_centered(|ui| {
-                    ui.add_space(20.);
-                    let laptop_icon = egui::include_image!("../assets/laptop.svg");
-                    ui.add(
-                        egui::Image::new(laptop_icon)
-                            .fit_to_original_size(2.5)
-                            .tint(ui.visuals().text_color()),
-                    );
+                egui::ScrollArea::vertical()
+                    .max_width(ui.available_width())
+                    .max_height(ui.available_height())
+                    .show(ui, |ui| {
+                        ui.vertical_centered(|ui| {
+                            ui.add_space(ui.available_height() / 4.);
+                            let laptop_icon = egui::include_image!("../assets/laptop.svg");
+                            ui.add(
+                                egui::Image::new(laptop_icon)
+                                    .fit_to_original_size(2.5)
+                                    .tint(ui.visuals().text_color()),
+                            );
 
-                    ui.add_space(5.);
+                            ui.add_space(5.);
 
-                    let half_available_width = ui.available_width() / 3.;
-                    let button_width = if half_available_width <= 250. {
-                        250.
-                    } else {
-                        half_available_width
-                    };
-                    ui.scope(|ui| {
-                        ui.visuals_mut().button_frame = false;
+                            let half_available_width = ui.available_width() / 3.;
+                            let button_width = if half_available_width <= 250. {
+                                250.
+                            } else {
+                                half_available_width
+                            };
+                            ui.scope(|ui| {
+                                ui.visuals_mut().button_frame = false;
 
-                        if ui
-                            .add(
-                                widgets::default_button(
-                                    None,
-                                    "Create a new request",
-                                    ui.visuals().hyperlink_color,
-                                    button_width,
-                                )
-                                .shortcut_text(
-                                    ui.ctx().format_shortcut(&egui::KeyboardShortcut::new(
-                                        egui::Modifiers::CTRL,
-                                        egui::Key::N,
-                                    )),
-                                ),
-                            )
-                            .clicked()
-                        {
-                            app.view = AppView::Request;
-                        }
+                                if ui
+                                    .add(
+                                        widgets::default_button(
+                                            egui::include_image!("../assets/create.svg"),
+                                            "Create a new request",
+                                            button_width,
+                                        )
+                                        .shortcut_text(
+                                            ui.ctx().format_shortcut(&egui::KeyboardShortcut::new(
+                                                egui::Modifiers::CTRL,
+                                                egui::Key::N,
+                                            )),
+                                        ),
+                                    )
+                                    .clicked()
+                                {
+                                    app.view = AppView::Request;
+                                }
 
-                        if ui
-                            .add(
-                                widgets::default_button(
-                                    None,
-                                    "View request history",
-                                    ui.visuals().hyperlink_color,
-                                    button_width,
-                                )
-                                .shortcut_text(
-                                    ui.ctx().format_shortcut(&egui::KeyboardShortcut::new(
-                                        egui::Modifiers::CTRL,
-                                        egui::Key::H,
-                                    )),
-                                ),
-                            )
-                            .clicked()
-                        {
-                            app.view = AppView::History;
-                        }
+                                if ui
+                                    .add(
+                                        widgets::default_button(
+                                            egui::include_image!("../assets/undo_history.svg"),
+                                            "View your recent requests",
+                                            button_width,
+                                        )
+                                        .shortcut_text(
+                                            ui.ctx().format_shortcut(&egui::KeyboardShortcut::new(
+                                                egui::Modifiers::CTRL,
+                                                egui::Key::H,
+                                            )),
+                                        ),
+                                    )
+                                    .clicked()
+                                {
+                                    app.view = AppView::History;
+                                }
 
-                        if ui
-                            .add(
-                                widgets::default_button(
-                                    None,
-                                    "Open your saved requests",
-                                    ui.visuals().hyperlink_color,
-                                    button_width,
-                                )
-                                .shortcut_text(
-                                    ui.ctx().format_shortcut(&egui::KeyboardShortcut::new(
-                                        egui::Modifiers::CTRL,
-                                        egui::Key::O,
-                                    )),
-                                ),
-                            )
-                            .clicked()
-                        {
-                            app.view = AppView::Saved;
-                        }
+                                if ui
+                                    .add(
+                                        widgets::default_button(
+                                            egui::include_image!("../assets/floppy.svg"),
+                                            "Open your saved requests",
+                                            button_width,
+                                        )
+                                        .shortcut_text(
+                                            ui.ctx().format_shortcut(&egui::KeyboardShortcut::new(
+                                                egui::Modifiers::CTRL,
+                                                egui::Key::O,
+                                            )),
+                                        ),
+                                    )
+                                    .clicked()
+                                {
+                                    app.view = AppView::Saved;
+                                }
+                            });
+                        });
                     });
-                });
             })
             .response
     }
@@ -793,14 +788,20 @@ fn viewer_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
                         ui.label("You haven't made a request yet!");
                     } else {
                         ui.add(widgets::padded_group(|ui| {
-                            ui.horizontal(|ui| {
-                                let status_colour =
-                                    utils::common::status_colour(&response.status_code);
+                            let status_colour = utils::common::status_colour(&response.status_code);
 
+                            ui.horizontal(|ui| {
                                 ui.label("Response Status:");
-                                ui.label(
-                                    egui::RichText::new(response.status_code.to_string())
-                                        .color(status_colour),
+                                ui.with_layout(
+                                    egui::Layout::left_to_right(egui::Align::Max)
+                                        .with_main_justify(true)
+                                        .with_main_align(egui::Align::LEFT),
+                                    |ui| {
+                                        ui.label(
+                                            egui::RichText::new(response.status_code.to_string())
+                                                .color(status_colour),
+                                        );
+                                    },
                                 );
                             });
                         }));
@@ -809,58 +810,73 @@ fn viewer_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
                             egui::CollapsingHeader::new("Response Headers").show_unindented(
                                 ui,
                                 |ui| {
-                                    egui::ScrollArea::vertical().show(ui, |ui| {
-                                        for (name, value) in &mut app.request.response.headers {
-                                            ui.with_layout(
-                                                egui::Layout::right_to_left(egui::Align::Min),
-                                                |ui| {
-                                                    ui.add(
-                                                        egui::TextEdit::singleline(value)
-                                                            .desired_width(
-                                                                ui.available_width() / 2.,
-                                                            )
-                                                            .margin(5.),
-                                                    );
-                                                    ui.add(
-                                                        egui::TextEdit::singleline(name)
-                                                            .desired_width(ui.available_width())
-                                                            .margin(5.),
-                                                    );
-                                                },
-                                            );
-                                        }
-                                    });
+                                    egui::ScrollArea::vertical()
+                                        .scroll_source(ScrollSource {
+                                            scroll_bar: true,
+                                            drag: false,
+                                            mouse_wheel: true,
+                                        })
+                                        .show(ui, |ui| {
+                                            for (name, value) in &mut app.request.response.headers {
+                                                ui.with_layout(
+                                                    egui::Layout::right_to_left(egui::Align::Min),
+                                                    |ui| {
+                                                        ui.add(
+                                                            egui::TextEdit::singleline(value)
+                                                                .desired_width(
+                                                                    ui.available_width() / 2.,
+                                                                )
+                                                                .margin(5.),
+                                                        );
+                                                        ui.add(
+                                                            egui::TextEdit::singleline(name)
+                                                                .desired_width(ui.available_width())
+                                                                .margin(5.),
+                                                        );
+                                                    },
+                                                );
+                                            }
+                                        });
                                 },
                             );
                         }));
 
-                        ui.add(widgets::padded_group(|ui| {
-                            let theme = egui_extras::syntax_highlighting::CodeTheme::from_memory(
-                                ui.ctx(),
-                                ui.style(),
-                            );
-                            let mut layouter = |ui: &egui::Ui, buf: &dyn egui::TextBuffer, _| {
-                                let mut layout_job = egui_extras::syntax_highlighting::highlight(
-                                    ui.ctx(),
-                                    ui.style(),
-                                    &theme.clone(),
-                                    buf.as_str(),
-                                    "json",
+                        egui::Frame::new()
+                            .stroke(egui::Stroke::new(
+                                1.,
+                                ui.style().noninteractive().bg_stroke.color,
+                            ))
+                            .corner_radius(5.)
+                            .show(ui, |ui| {
+                                let theme =
+                                    egui_extras::syntax_highlighting::CodeTheme::from_memory(
+                                        ui.ctx(),
+                                        ui.style(),
+                                    );
+                                let mut layouter =
+                                    |ui: &egui::Ui, buf: &dyn egui::TextBuffer, _| {
+                                        let mut layout_job =
+                                            egui_extras::syntax_highlighting::highlight(
+                                                ui.ctx(),
+                                                ui.style(),
+                                                &theme.clone(),
+                                                buf.as_str(),
+                                                "json",
+                                            );
+
+                                        // Don't allow the wrap to reach the end of the TextEdit
+                                        layout_job.wrap.max_width = ui.available_width() - 20.;
+
+                                        ui.fonts(|f| f.layout_job(layout_job))
+                                    };
+
+                                ui.add(
+                                    egui::TextEdit::multiline(&mut app.request.response.body)
+                                        .code_editor()
+                                        .layouter(&mut layouter)
+                                        .desired_width(ui.available_width()),
                                 );
-
-                                // Don't allow the wrap to reach the end of the TextEdit
-                                layout_job.wrap.max_width = ui.available_width() - 20.;
-
-                                ui.fonts(|f| f.layout_job(layout_job))
-                            };
-
-                            ui.add(
-                                egui::TextEdit::multiline(&mut app.request.response.body)
-                                    .code_editor()
-                                    .layouter(&mut layouter)
-                                    .desired_width(ui.available_width()),
-                            );
-                        }));
+                            });
                     }
                 });
             })
@@ -881,7 +897,6 @@ fn header_editor(app: &mut Reqwestur, ui: &mut egui::Ui) {
                     .add(widgets::default_button(
                         Some(add_icon),
                         "New Header",
-                        ui.visuals().text_color(),
                         ui.available_width(),
                     ))
                     .clicked()
@@ -962,12 +977,7 @@ fn payload_editor(app: &mut Reqwestur, ui: &mut egui::Ui) {
                 ui.separator();
                 ui.with_layout(egui::Layout::bottom_up(egui::Align::Min), |ui| {
                     if ui
-                        .add(default_button(
-                            None,
-                            "Done!",
-                            ui.visuals().text_color(),
-                            ui.available_width(),
-                        ))
+                        .add(default_button(None, "Done!", ui.available_width()))
                         .clicked()
                     {
                         app.payload_editor_open = false;
@@ -985,7 +995,6 @@ fn payload_editor(app: &mut Reqwestur, ui: &mut egui::Ui) {
                                     .add(widgets::default_button(
                                         Some(add_icon),
                                         "New Field",
-                                        ui.visuals().text_color(),
                                         ui.available_width(),
                                     ))
                                     .clicked()
@@ -1111,7 +1120,6 @@ fn certificate_editor(app: &mut Reqwestur, ui: &mut egui::Ui) {
                             default_button(
                                 Some(save_icon.clone()),
                                 "Confirm & Close!",
-                                ui.visuals().text_color(),
                                 ui.available_width(),
                             ),
                         )
@@ -1128,7 +1136,6 @@ fn certificate_editor(app: &mut Reqwestur, ui: &mut egui::Ui) {
                             default_button(
                                 Some(save_icon),
                                 "Validate Certificates",
-                                ui.visuals().text_color(),
                                 ui.available_width(),
                             ),
                         )
@@ -1156,7 +1163,9 @@ fn certificate_editor(app: &mut Reqwestur, ui: &mut egui::Ui) {
                         }
                     }
 
-                    widgets::display_notification(ui, &app.certificates.notification);
+                    if let Some(notification) = &app.certificates.notification {
+                        ui.add(widgets::notification(notification));
+                    }
 
                     if app.certificates.status == CertificatesStatus::UNCONFIRMED {
                         ui.label("No certificates have been loaded.");
@@ -1177,7 +1186,6 @@ fn certificate_editor(app: &mut Reqwestur, ui: &mut egui::Ui) {
                                 .add(default_button(
                                     Some(upload_icon),
                                     "Select a PFX.",
-                                    ui.visuals().text_color(),
                                     ui.available_width(),
                                 ))
                                 .clicked()
@@ -1197,7 +1205,6 @@ fn certificate_editor(app: &mut Reqwestur, ui: &mut egui::Ui) {
                                     .add(default_button(
                                         Some(bin_icon),
                                         "Remove PFX.",
-                                        ui.visuals().text_color(),
                                         ui.available_width(),
                                     ))
                                     .clicked()

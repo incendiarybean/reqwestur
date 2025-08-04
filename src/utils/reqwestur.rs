@@ -198,11 +198,20 @@ impl Reqwestur {
             built_request = built_request.headers(header_list)
         }
 
-        if [BodyType::JSON, BodyType::MULTIPART].contains(&self.request.body_type) {
+        if [
+            BodyType::JSON,
+            BodyType::MULTIPART,
+            BodyType::XWWWFORMURLENCODED,
+        ]
+        .contains(&self.request.body_type)
+        {
             built_request = match body_type {
                 BodyType::MULTIPART => {
-                    //built_request.multipart(todo!())
-                    todo!()
+                    let mut form = reqwest::blocking::multipart::Form::new();
+                    for (name, value) in form_data {
+                        form = form.text(name, value);
+                    }
+                    built_request.multipart(form)
                 }
                 BodyType::XWWWFORMURLENCODED => built_request.form(&form_data),
                 BodyType::JSON => {
@@ -433,9 +442,16 @@ pub enum NotificationKind {
 }
 
 impl NotificationKind {
-    pub fn to_colour(&self) -> Color32 {
+    pub fn to_colour(&self, dark_mode: impl Into<Option<bool>>) -> Color32 {
+        let is_dark_mode = dark_mode.into().unwrap_or(false);
         match self {
-            NotificationKind::INFO => Color32::GREEN,
+            NotificationKind::INFO => {
+                if is_dark_mode {
+                    egui::Color32::LIGHT_GREEN
+                } else {
+                    egui::Color32::DARK_GREEN
+                }
+            }
             NotificationKind::ERROR => Color32::RED,
             NotificationKind::WARN => Color32::ORANGE,
         }
