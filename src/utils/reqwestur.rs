@@ -1,8 +1,15 @@
 use std::str::FromStr;
 
-use eframe::egui::{self, Color32};
+use eframe::egui::{self};
 
-use crate::{ui, utils::common};
+use crate::{
+    ui,
+    utils::{
+        certificates::{Certificates, CertificatesStatus},
+        notifications::{Notification, NotificationKind},
+        request::{BodyType, Method, Request, Response},
+    },
+};
 
 #[derive(Default, serde::Deserialize, serde::Serialize, Clone, PartialEq, Eq)]
 pub enum AppView {
@@ -11,6 +18,26 @@ pub enum AppView {
     Request,
     Saved,
     History,
+}
+
+pub struct AppShortcuts {
+    pub save: egui::KeyboardShortcut,
+    pub new: egui::KeyboardShortcut,
+    pub history: egui::KeyboardShortcut,
+    pub open: egui::KeyboardShortcut,
+    pub hide_menu: egui::KeyboardShortcut,
+}
+
+impl Default for AppShortcuts {
+    fn default() -> Self {
+        Self {
+            save: egui::KeyboardShortcut::new(egui::Modifiers::CTRL, egui::Key::S),
+            new: egui::KeyboardShortcut::new(egui::Modifiers::CTRL, egui::Key::N),
+            history: egui::KeyboardShortcut::new(egui::Modifiers::CTRL, egui::Key::H),
+            open: egui::KeyboardShortcut::new(egui::Modifiers::CTRL, egui::Key::O),
+            hide_menu: egui::KeyboardShortcut::new(egui::Modifiers::CTRL, egui::Key::B),
+        }
+    }
 }
 
 #[derive(serde::Deserialize, serde::Serialize, Clone)]
@@ -29,7 +56,7 @@ pub struct Reqwestur {
     pub history: Vec<Request>,
 
     // Editors
-    pub headers_editor_open: bool,
+    pub header_editor_open: bool,
     pub payload_editor_open: bool,
     pub certificate_editor_open: bool,
 
@@ -54,7 +81,7 @@ impl Default for Reqwestur {
             history: Vec::new(),
 
             // Editors
-            headers_editor_open: false,
+            header_editor_open: false,
             payload_editor_open: false,
             certificate_editor_open: false,
 
@@ -105,7 +132,8 @@ impl Reqwestur {
                 request: Request::default(),
 
                 // Reset window values
-                headers_editor_open: false,
+                header_editor_open: false,
+                payload_editor_open: false,
                 certificate_editor_open: false,
                 help_modal_open: false,
                 about_modal_open: false,
@@ -125,6 +153,7 @@ impl Reqwestur {
             method,
             headers,
             address,
+            timestamp: _,
             body,
             form_data,
             body_type,
@@ -137,10 +166,7 @@ impl Reqwestur {
 
         if self.certificates.required {
             if self.certificates.file_path.exists() && !self.certificates.passphrase.is_empty() {
-                let (kind, message) = match common::load_certificates(
-                    &self.certificates.file_path,
-                    &self.certificates.passphrase,
-                ) {
+                let (kind, message) = match self.certificates.import() {
                     Ok(identity) => {
                         self.certificates.status = CertificatesStatus::OK;
                         self.certificates.identity = Some(identity);
@@ -278,6 +304,7 @@ impl Reqwestur {
 
         self.request.notification = Some(notification);
         self.request.response = response.clone();
+        self.request.timestamp = chrono::Utc::now().format("%d/%m/%Y %H:%M").to_string();
         self.history.push(self.request.clone());
 
         Ok(response)
@@ -338,168 +365,4 @@ impl eframe::App for Reqwestur {
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         eframe::set_value(storage, eframe::APP_KEY, self);
     }
-}
-
-pub struct AppShortcuts {
-    pub save: egui::KeyboardShortcut,
-    pub new: egui::KeyboardShortcut,
-    pub history: egui::KeyboardShortcut,
-    pub open: egui::KeyboardShortcut,
-}
-
-impl Default for AppShortcuts {
-    fn default() -> Self {
-        Self {
-            save: egui::KeyboardShortcut::new(egui::Modifiers::CTRL, egui::Key::S),
-            new: egui::KeyboardShortcut::new(egui::Modifiers::CTRL, egui::Key::N),
-            history: egui::KeyboardShortcut::new(egui::Modifiers::CTRL, egui::Key::H),
-            open: egui::KeyboardShortcut::new(egui::Modifiers::CTRL, egui::Key::O),
-        }
-    }
-}
-
-#[derive(Default, serde::Deserialize, serde::Serialize, Clone, PartialEq, Eq)]
-pub enum Method {
-    #[default]
-    GET,
-    POST,
-    PUT,
-    PATCH,
-    DELETE,
-}
-
-impl Method {
-    const OPTIONS: [Self; 5] = [Self::GET, Self::POST, Self::PUT, Self::PATCH, Self::DELETE];
-
-    pub fn to_string(&self) -> String {
-        let str = match self {
-            Method::GET => "GET",
-            Method::POST => "POST",
-            Method::PUT => "PUT",
-            Method::PATCH => "PATCH",
-            Method::DELETE => "DELETE",
-        };
-
-        str.to_string()
-    }
-
-    pub fn values() -> Vec<Method> {
-        Vec::from(Self::OPTIONS)
-    }
-}
-
-#[derive(Default, serde::Deserialize, serde::Serialize, Clone)]
-#[serde(default)]
-pub struct Response {
-    pub status_code: u16,
-    pub headers: Vec<(String, String)>,
-    pub body: String,
-}
-
-#[derive(Default, serde::Deserialize, serde::Serialize, Clone, Eq, PartialEq)]
-pub enum BodyType {
-    #[default]
-    EMPTY,
-    TEXT,
-    MULTIPART,
-    XWWWFORMURLENCODED,
-    JSON,
-}
-
-impl BodyType {
-    const OPTIONS: [Self; 3] = [Self::XWWWFORMURLENCODED, Self::JSON, Self::EMPTY];
-
-    pub fn to_string(&self) -> String {
-        let str = match self {
-            BodyType::XWWWFORMURLENCODED => "application/x-www-form-urlencoded",
-            BodyType::MULTIPART => "multipart/form-data",
-            BodyType::JSON => "application/json",
-            BodyType::TEXT => "text/plain",
-            BodyType::EMPTY => "empty",
-        };
-
-        str.to_string()
-    }
-
-    pub fn values() -> Vec<BodyType> {
-        Vec::from(Self::OPTIONS)
-    }
-}
-
-#[derive(Default, serde::Deserialize, serde::Serialize, Clone)]
-#[serde(default)]
-pub struct Address {
-    pub uri: String,
-    pub notification: Option<Notification>,
-}
-
-#[derive(Default, serde::Deserialize, serde::Serialize, Clone, Eq, PartialEq)]
-pub enum NotificationKind {
-    #[default]
-    INFO,
-    ERROR,
-    WARN,
-}
-
-impl NotificationKind {
-    pub fn to_colour(&self, dark_mode: impl Into<Option<bool>>) -> Color32 {
-        let is_dark_mode = dark_mode.into().unwrap_or(false);
-        match self {
-            NotificationKind::INFO => {
-                if is_dark_mode {
-                    egui::Color32::LIGHT_GREEN
-                } else {
-                    egui::Color32::DARK_GREEN
-                }
-            }
-            NotificationKind::ERROR => Color32::RED,
-            NotificationKind::WARN => Color32::ORANGE,
-        }
-    }
-}
-
-#[derive(Default, serde::Deserialize, serde::Serialize, Clone)]
-#[serde(default)]
-pub struct Notification {
-    pub kind: NotificationKind,
-    pub message: String,
-}
-
-#[derive(Default, serde::Deserialize, serde::Serialize, Clone, Eq, PartialEq)]
-pub enum CertificatesStatus {
-    #[default]
-    UNCONFIRMED,
-    OK,
-    ERROR,
-}
-
-#[derive(Default, serde::Deserialize, serde::Serialize, Clone)]
-#[serde(default)]
-pub struct Certificates {
-    pub required: bool,
-    pub file_path: std::path::PathBuf,
-    pub passphrase: String,
-    pub status: CertificatesStatus,
-    pub notification: Option<Notification>,
-
-    #[serde(skip)]
-    pub identity: Option<reqwest::Identity>,
-}
-
-#[derive(Default, serde::Deserialize, serde::Serialize, Clone)]
-#[serde(default)]
-pub struct Request {
-    pub method: Method,
-    pub headers: Vec<(String, String)>,
-    pub address: Address,
-
-    pub body: Option<String>,
-    pub form_data: Vec<(String, String)>,
-    pub body_type: BodyType,
-
-    pub sendable: bool,
-
-    pub response: Response,
-
-    pub notification: Option<Notification>,
 }

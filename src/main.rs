@@ -8,6 +8,9 @@ mod utils;
 
 use crate::utils::reqwestur::Reqwestur;
 
+/// The main application runner
+///
+/// Spawns a new native eframe application with the provided parameters
 fn main() -> Result<(), eframe::Error> {
     let icon: &[u8] = include_bytes!("assets/icon.png");
     let img: image::DynamicImage = image::load_from_memory(icon).unwrap();
