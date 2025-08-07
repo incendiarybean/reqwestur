@@ -49,7 +49,7 @@ pub fn window(app: &mut Reqwestur, ui: &mut egui::Ui, shortcuts: AppShortcuts) {
             ui.add(viewer_panel(app));
         }
         AppView::Saved => {
-            todo!()
+            ui.add(saved_request_panel(app));
         }
         AppView::History => {
             ui.add(history_panel(app));
@@ -602,6 +602,81 @@ fn request_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
             .response
     }
 }
+/// The view handling the user's saved requests
+fn saved_request_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
+    move |ui: &mut egui::Ui| {
+        egui::CentralPanel::default()
+            .show(ui.ctx(), |ui| {
+                ui.vertical(|ui| {
+                    if app.history.len() == 0 {
+                        ui.label("You haven't saved any requests yet!");
+                    } else {
+                        egui::ScrollArea::vertical()
+                            .auto_shrink(false)
+                            .max_height(ui.available_height())
+                            .max_width(ui.available_width())
+                            .show_rows(ui, 18., app.saved_requests.len(), |ui, row_range| {
+                                for row in row_range.rev() {
+                                    if let Some(row_data) = app.saved_requests.get(row) {
+                                        egui::Frame::new()
+                                            .stroke(egui::Stroke::new(
+                                                1.,
+                                                ui.visuals().noninteractive().bg_stroke.color,
+                                            ))
+                                            .inner_margin(egui::Vec2::splat(5.))
+                                            .corner_radius(5.)
+                                            .show(ui, |ui| {
+                                                ui.horizontal(|ui| {
+                                                    let open_icon = egui::include_image!(
+                                                        "../assets/folder_open.svg"
+                                                    );
+                                                    if ui
+                                                        .add_sized(
+                                                            egui::vec2(32., 32.),
+                                                            egui::ImageButton::new(
+                                                                egui::Image::new(open_icon)
+                                                                    .tint(ui.visuals().text_color())
+                                                                    .fit_to_exact_size(
+                                                                        [16., 16.].into(),
+                                                                    )
+                                                                    .corner_radius(5.)
+                                                                    .alt_text("View Request"),
+                                                            ),
+                                                        )
+                                                        .clicked()
+                                                    {
+                                                        app.request = row_data.clone();
+                                                        app.view = AppView::Request;
+                                                    }
+                                                    ui.with_layout(
+                                                        egui::Layout::left_to_right(
+                                                            egui::Align::Center,
+                                                        )
+                                                        .with_main_justify(true)
+                                                        .with_main_align(egui::Align::LEFT),
+                                                        |ui| {
+                                                            ui.add(
+                                                                egui::Label::new(
+                                                                    egui::RichText::new(
+                                                                        &row_data.address.uri,
+                                                                    )
+                                                                    .size(14.),
+                                                                )
+                                                                .truncate(),
+                                                            );
+                                                        },
+                                                    );
+                                                });
+                                            });
+                                    }
+                                }
+                            });
+                    }
+                });
+            })
+            .response
+    }
+}
 
 /// The view handling the user's previous requests
 fn history_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
@@ -645,23 +720,65 @@ fn history_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
                                             .corner_radius(5.)
                                             .show(ui, |ui| {
                                                 ui.horizontal(|ui| {
-                                                    let open_icon = egui::include_image!(
-                                                        "../assets/folder_open.svg"
-                                                    );
-                                                    if ui
-                                                        .add(egui::ImageButton::new(
-                                                            egui::Image::new(open_icon)
-                                                                .tint(ui.visuals().text_color())
-                                                                .fit_to_exact_size(
-                                                                    [16., 16.].into(),
-                                                                )
-                                                                .corner_radius(5.),
-                                                        ))
-                                                        .clicked()
-                                                    {
-                                                        app.request = row_data.clone();
-                                                        app.view = AppView::Request;
-                                                    }
+                                                    ui.vertical(|ui| {
+                                                        let open_icon = egui::include_image!(
+                                                            "../assets/folder_open.svg"
+                                                        );
+                                                        if ui
+                                                            .add(egui::ImageButton::new(
+                                                                egui::Image::new(open_icon)
+                                                                    .tint(ui.visuals().text_color())
+                                                                    .fit_to_exact_size(
+                                                                        [16., 16.].into(),
+                                                                    )
+                                                                    .corner_radius(5.)
+                                                                    .alt_text("View Request"),
+                                                            ))
+                                                            .clicked()
+                                                        {
+                                                            app.request = row_data.clone();
+                                                            app.view = AppView::Request;
+                                                        }
+
+                                                        let save_icon = egui::include_image!(
+                                                            "../assets/floppy.svg"
+                                                        );
+                                                        if ui
+                                                            .add(egui::ImageButton::new(
+                                                                egui::Image::new(save_icon)
+                                                                    .tint(ui.visuals().text_color())
+                                                                    .fit_to_exact_size(
+                                                                        [16., 16.].into(),
+                                                                    )
+                                                                    .corner_radius(5.)
+                                                                    .alt_text("Save Request"),
+                                                            ))
+                                                            .clicked()
+                                                        {
+                                                            let Request {
+                                                                method,
+                                                                headers,
+                                                                address,
+                                                                timestamp: _,
+                                                                content_type,
+                                                                body,
+                                                                form_data,
+                                                                sendable: _,
+                                                                response: _,
+                                                                notification: _,
+                                                            } = row_data.clone();
+
+                                                            app.saved_requests.push(Request {
+                                                                method,
+                                                                headers,
+                                                                address,
+                                                                content_type,
+                                                                body,
+                                                                form_data,
+                                                                ..Default::default()
+                                                            });
+                                                        }
+                                                    });
 
                                                     ui.vertical(|ui| {
                                                         ui.horizontal(|ui| {
@@ -746,18 +863,21 @@ fn home_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
 
                                 if ui
                                     .add(
-                                        default_button(
-                                            egui::include_image!("../assets/create.svg"),
-                                            "Create a new request",
-                                            button_width,
-                                            ui.visuals().text_color(),
+                                        egui::Button::image_and_text(
+                                            egui::Image::new(egui::include_image!(
+                                                "../assets/create.svg"
+                                            ))
+                                            .fit_to_exact_size(egui::vec2(16., 16.))
+                                            .tint(ui.visuals().text_color()),
+                                            egui::RichText::new("Create a new request").size(14.),
                                         )
-                                        .shortcut_text(
-                                            ui.ctx().format_shortcut(&egui::KeyboardShortcut::new(
+                                        .shortcut_text(ui.ctx().format_shortcut(
+                                            &egui::KeyboardShortcut::new(
                                                 egui::Modifiers::CTRL,
                                                 egui::Key::N,
-                                            )),
-                                        ),
+                                            ),
+                                        ))
+                                        .min_size(egui::vec2(button_width, 32.)),
                                     )
                                     .clicked()
                                 {
@@ -766,18 +886,22 @@ fn home_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
 
                                 if ui
                                     .add(
-                                        default_button(
-                                            egui::include_image!("../assets/undo_history.svg"),
-                                            "View your recent requests",
-                                            button_width,
-                                            ui.visuals().text_color(),
+                                        egui::Button::image_and_text(
+                                            egui::Image::new(egui::include_image!(
+                                                "../assets/undo_history.svg"
+                                            ))
+                                            .fit_to_exact_size(egui::vec2(16., 16.))
+                                            .tint(ui.visuals().text_color()),
+                                            egui::RichText::new("View your recent requests")
+                                                .size(14.),
                                         )
-                                        .shortcut_text(
-                                            ui.ctx().format_shortcut(&egui::KeyboardShortcut::new(
+                                        .shortcut_text(ui.ctx().format_shortcut(
+                                            &egui::KeyboardShortcut::new(
                                                 egui::Modifiers::CTRL,
                                                 egui::Key::H,
-                                            )),
-                                        ),
+                                            ),
+                                        ))
+                                        .min_size(egui::vec2(button_width, 32.)),
                                     )
                                     .clicked()
                                 {
@@ -786,18 +910,22 @@ fn home_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
 
                                 if ui
                                     .add(
-                                        default_button(
-                                            egui::include_image!("../assets/floppy.svg"),
-                                            "Open your saved requests",
-                                            button_width,
-                                            ui.visuals().text_color(),
+                                        egui::Button::image_and_text(
+                                            egui::Image::new(egui::include_image!(
+                                                "../assets/floppy.svg"
+                                            ))
+                                            .fit_to_exact_size(egui::vec2(16., 16.))
+                                            .tint(ui.visuals().text_color()),
+                                            egui::RichText::new("Open your saved requests")
+                                                .size(14.),
                                         )
-                                        .shortcut_text(
-                                            ui.ctx().format_shortcut(&egui::KeyboardShortcut::new(
+                                        .shortcut_text(ui.ctx().format_shortcut(
+                                            &egui::KeyboardShortcut::new(
                                                 egui::Modifiers::CTRL,
                                                 egui::Key::O,
-                                            )),
-                                        ),
+                                            ),
+                                        ))
+                                        .min_size(egui::vec2(button_width, 32.)),
                                     )
                                     .clicked()
                                 {

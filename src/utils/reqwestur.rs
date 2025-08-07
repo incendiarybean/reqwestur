@@ -53,6 +53,7 @@ pub struct Reqwestur {
 
     // Request Panel
     pub request: Request,
+    pub saved_requests: Vec<Request>,
     pub certificates: Certificates,
 
     // History Panel
@@ -78,6 +79,7 @@ impl Default for Reqwestur {
 
             // Request
             request: Request::default(),
+            saved_requests: Vec::new(),
             certificates: Certificates::default(),
 
             // History
