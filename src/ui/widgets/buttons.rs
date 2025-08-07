@@ -7,7 +7,7 @@ pub fn default_button<'image>(
     colour: egui::Color32,
 ) -> egui::Button<'image> {
     let image = image.into();
-    let txt = egui::RichText::new(text).size(14.);
+    let txt = egui::RichText::new(text).size(14.).color(colour);
     let btn = if let Some(image) = image {
         egui::Button::image_and_text(
             egui::Image::new(image)
