@@ -3,11 +3,13 @@ use std::str::FromStr;
 use eframe::egui::{self};
 
 use crate::{
-    ui,
+    ui::{
+        self,
+        widgets::notification::{Notification, NotificationKind},
+    },
     utils::{
         certificates::{Certificates, CertificatesStatus},
-        notifications::{Notification, NotificationKind},
-        request::{BodyType, Method, Request, Response},
+        request::{ContentType, Method, Request, Response},
     },
 };
 
@@ -20,6 +22,7 @@ pub enum AppView {
     History,
 }
 
+/// A struct containing application shortcut keybindings
 pub struct AppShortcuts {
     pub save: egui::KeyboardShortcut,
     pub new: egui::KeyboardShortcut,
@@ -146,7 +149,17 @@ impl Reqwestur {
         Default::default()
     }
 
+    /// A function to send the built request
     pub fn send(&mut self) -> Result<Response, Notification> {
+        if !self.check_sendable() {
+            let notification = Notification {
+                kind: NotificationKind::ERROR,
+                message: format!("The request is not in a sendable state"),
+            };
+            self.request.notification(&notification);
+            return Err(notification);
+        }
+
         self.request.response = Response::default();
 
         let Request {
@@ -155,8 +168,8 @@ impl Reqwestur {
             address,
             timestamp: _,
             body,
+            content_type,
             form_data,
-            body_type,
             sendable: _,
             response: _,
             notification: _,
@@ -190,8 +203,7 @@ impl Reqwestur {
                     kind: NotificationKind::WARN,
                     message: "Cannot find certificates, have you added them?".to_string(),
                 };
-                self.request.notification = Some(notification.clone());
-
+                self.request.notification(&notification);
                 return Err(notification);
             }
         }
@@ -224,30 +236,23 @@ impl Reqwestur {
             built_request = built_request.headers(header_list)
         }
 
-        if [
-            BodyType::JSON,
-            BodyType::MULTIPART,
-            BodyType::XWWWFORMURLENCODED,
-        ]
-        .contains(&self.request.body_type)
-        {
-            built_request = match body_type {
-                BodyType::MULTIPART => {
+        if self.request.content_type != ContentType::EMPTY {
+            built_request = match content_type {
+                ContentType::MULTIPART => {
                     let mut form = reqwest::blocking::multipart::Form::new();
                     for (name, value) in form_data {
                         form = form.text(name, value);
                     }
                     built_request.multipart(form)
                 }
-                BodyType::XWWWFORMURLENCODED => built_request.form(&form_data),
-                BodyType::JSON => {
+                ContentType::XWWWFORMURLENCODED => built_request.form(&form_data),
+                _ => {
                     if let Some(body) = body {
                         built_request.body(body)
                     } else {
                         built_request
                     }
                 }
-                _ => built_request,
             };
         }
 
@@ -282,7 +287,7 @@ impl Reqwestur {
                 kind: NotificationKind::ERROR,
                 message: format!("Could not prettify JSON - {:?}", error),
             };
-            self.request.notification = Some(notification.clone());
+            self.request.notification(&notification);
             return Err(notification);
         }
 
@@ -297,12 +302,10 @@ impl Reqwestur {
             body: pretty_string.unwrap(),
         };
 
-        let notification = Notification {
+        self.request.notification(&Notification {
             kind: NotificationKind::INFO,
             message: "Sent successfully.".to_string(),
-        };
-
-        self.request.notification = Some(notification);
+        });
         self.request.response = response.clone();
         self.request.timestamp = chrono::Utc::now().format("%d/%m/%Y %H:%M").to_string();
         self.history.push(self.request.clone());
@@ -310,7 +313,8 @@ impl Reqwestur {
         Ok(response)
     }
 
-    pub fn check_sendable(&mut self) {
+    /// A function to check if the request is in a sendable state
+    pub fn check_sendable(&mut self) -> bool {
         let uri_ok: bool = reqwest::Url::parse(&self.request.address.uri).is_ok();
 
         let certificate_ok = if self.certificates.required {
@@ -337,6 +341,8 @@ impl Reqwestur {
         });
 
         self.request.sendable = uri_ok && certificate_ok && no_errors;
+
+        self.request.sendable
     }
 }
 

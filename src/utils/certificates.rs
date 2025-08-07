@@ -1,4 +1,4 @@
-use crate::utils::notifications::Notification;
+use crate::ui::widgets::notification::Notification;
 
 #[derive(Default, serde::Deserialize, serde::Serialize, Clone, Eq, PartialEq)]
 pub enum CertificatesStatus {

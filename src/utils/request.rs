@@ -1,7 +1,8 @@
 use eframe::egui;
 
-use crate::utils::notifications::Notification;
+use crate::{ui::widgets::notification::Notification, utils::traits::ToColour};
 
+/// HTTP method mapping
 #[derive(Default, serde::Deserialize, serde::Serialize, Clone, PartialEq, Eq)]
 pub enum Method {
     #[default]
@@ -13,8 +14,10 @@ pub enum Method {
 }
 
 impl Method {
+    /// A list to offer all method types for iteration
     const OPTIONS: [Self; 5] = [Self::GET, Self::POST, Self::PUT, Self::PATCH, Self::DELETE];
 
+    /// Convert the method type to string
     pub fn to_string(&self) -> String {
         let str = match self {
             Method::GET => "GET",
@@ -27,6 +30,7 @@ impl Method {
         str.to_string()
     }
 
+    /// Convert the method type to associated colour
     pub fn to_colour(&self) -> egui::Color32 {
         match self {
             Method::GET => egui::Color32::LIGHT_BLUE,
@@ -37,18 +41,16 @@ impl Method {
         }
     }
 
+    /// Return an iterable of the available methods
     pub fn values() -> Vec<Method> {
         Vec::from(Self::OPTIONS)
     }
 }
 
-/// Create a colour trait for u16
-pub trait ToColour {
-    /// Converts the current u16 value to a colour value (based on HTTP status codes)
-    fn to_colour(&self) -> egui::Color32;
-}
+/// An alias to annotate the u16 type as a HTTP status code
+type StatusCode = u16;
 
-impl ToColour for u16 {
+impl ToColour for StatusCode {
     /// Converts the current u16 value to a colour value (based on HTTP status codes)
     fn to_colour(&self) -> egui::Color32 {
         match self {
@@ -59,16 +61,18 @@ impl ToColour for u16 {
     }
 }
 
+/// The struct containing the HTTP response
 #[derive(Default, serde::Deserialize, serde::Serialize, Clone)]
 #[serde(default)]
 pub struct Response {
-    pub status_code: u16,
+    pub status_code: StatusCode,
     pub headers: Vec<(String, String)>,
     pub body: String,
 }
 
+/// The Content-Type of the request
 #[derive(Default, serde::Deserialize, serde::Serialize, Clone, Eq, PartialEq)]
-pub enum BodyType {
+pub enum ContentType {
     #[default]
     EMPTY,
     TEXT,
@@ -77,26 +81,33 @@ pub enum BodyType {
     JSON,
 }
 
-impl BodyType {
-    const OPTIONS: [Self; 3] = [Self::XWWWFORMURLENCODED, Self::JSON, Self::EMPTY];
+impl ContentType {
+    const OPTIONS: [Self; 5] = [
+        Self::XWWWFORMURLENCODED,
+        Self::JSON,
+        Self::EMPTY,
+        Self::TEXT,
+        Self::MULTIPART,
+    ];
 
     pub fn to_string(&self) -> String {
         let str = match self {
-            BodyType::XWWWFORMURLENCODED => "application/x-www-form-urlencoded",
-            BodyType::MULTIPART => "multipart/form-data",
-            BodyType::JSON => "application/json",
-            BodyType::TEXT => "text/plain",
-            BodyType::EMPTY => "empty",
+            ContentType::XWWWFORMURLENCODED => "application/x-www-form-urlencoded",
+            ContentType::MULTIPART => "multipart/form-data",
+            ContentType::JSON => "application/json",
+            ContentType::TEXT => "text/plain",
+            ContentType::EMPTY => "empty",
         };
 
         str.to_string()
     }
 
-    pub fn values() -> Vec<BodyType> {
+    pub fn values() -> Vec<Self> {
         Vec::from(Self::OPTIONS)
     }
 }
 
+/// The struct containing the request address details
 #[derive(Default, serde::Deserialize, serde::Serialize, Clone)]
 #[serde(default)]
 pub struct Address {
@@ -104,6 +115,7 @@ pub struct Address {
     pub notification: Option<Notification>,
 }
 
+/// The struct containing the HTTP request details
 #[derive(Default, serde::Deserialize, serde::Serialize, Clone)]
 #[serde(default)]
 pub struct Request {
@@ -112,13 +124,19 @@ pub struct Request {
     pub address: Address,
     pub timestamp: String,
 
+    pub content_type: ContentType,
     pub body: Option<String>,
     pub form_data: Vec<(String, String)>,
-    pub body_type: BodyType,
 
     pub sendable: bool,
 
     pub response: Response,
 
     pub notification: Option<Notification>,
+}
+
+impl Request {
+    pub fn notification(&mut self, notification: &Notification) {
+        self.notification = Some(notification.to_owned());
+    }
 }
