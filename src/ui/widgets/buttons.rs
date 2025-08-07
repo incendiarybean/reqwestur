@@ -4,12 +4,15 @@ pub fn default_button<'image>(
     image: impl Into<Option<egui::ImageSource<'image>>>,
     text: &str,
     width: f32,
+    colour: egui::Color32,
 ) -> egui::Button<'image> {
     let image = image.into();
     let txt = egui::RichText::new(text).size(14.);
     let btn = if let Some(image) = image {
         egui::Button::image_and_text(
-            egui::Image::new(image).fit_to_exact_size(egui::vec2(16., 16.)),
+            egui::Image::new(image)
+                .fit_to_exact_size(egui::vec2(16., 16.))
+                .tint(colour),
             txt,
         )
     } else {

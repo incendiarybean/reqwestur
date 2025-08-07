@@ -498,6 +498,7 @@ fn request_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
                                             Some(edit_icon),
                                             "Payload Management",
                                             ui.available_width(),
+                                            ui.visuals().text_color(),
                                         ))
                                         .clicked()
                                     {
@@ -515,6 +516,7 @@ fn request_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
                                         Some(edit_icon),
                                         "Header Management",
                                         ui.available_width(),
+                                        ui.visuals().text_color(),
                                     ))
                                     .clicked()
                                 {
@@ -545,6 +547,7 @@ fn request_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
                                                 Some(edit_icon),
                                                 "Certificate Management",
                                                 ui.available_width(),
+                                                ui.visuals().text_color(),
                                             ))
                                             .clicked()
                                         {
@@ -580,6 +583,7 @@ fn request_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
                                                 Some(send_icon),
                                                 "Send!",
                                                 ui.available_width(),
+                                                ui.visuals().text_color(),
                                             ),
                                         )
                                         .clicked()
@@ -614,6 +618,7 @@ fn history_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
                                 Some(bin_icon),
                                 "Clear History",
                                 ui.available_width(),
+                                ui.visuals().text_color(),
                             ))
                             .clicked()
                         {
@@ -745,6 +750,7 @@ fn home_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
                                             egui::include_image!("../assets/create.svg"),
                                             "Create a new request",
                                             button_width,
+                                            ui.visuals().text_color(),
                                         )
                                         .shortcut_text(
                                             ui.ctx().format_shortcut(&egui::KeyboardShortcut::new(
@@ -764,6 +770,7 @@ fn home_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
                                             egui::include_image!("../assets/undo_history.svg"),
                                             "View your recent requests",
                                             button_width,
+                                            ui.visuals().text_color(),
                                         )
                                         .shortcut_text(
                                             ui.ctx().format_shortcut(&egui::KeyboardShortcut::new(
@@ -783,6 +790,7 @@ fn home_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
                                             egui::include_image!("../assets/floppy.svg"),
                                             "Open your saved requests",
                                             button_width,
+                                            ui.visuals().text_color(),
                                         )
                                         .shortcut_text(
                                             ui.ctx().format_shortcut(&egui::KeyboardShortcut::new(
@@ -944,6 +952,7 @@ fn header_editor(app: &mut Reqwestur, ui: &mut egui::Ui) {
                         Some(add_icon),
                         "New Header",
                         ui.available_width(),
+                        ui.visuals().text_color(),
                     ))
                     .clicked()
                 {
@@ -986,7 +995,12 @@ fn header_editor(app: &mut Reqwestur, ui: &mut egui::Ui) {
                     });
                 ui.with_layout(egui::Layout::bottom_up(egui::Align::Center), |ui| {
                     if ui
-                        .add(default_button(None, "Done!", ui.available_width()))
+                        .add(default_button(
+                            None,
+                            "Done!",
+                            ui.available_width(),
+                            ui.visuals().text_color(),
+                        ))
                         .clicked()
                     {
                         app.header_editor_open = false;
@@ -1041,6 +1055,7 @@ fn payload_editor(app: &mut Reqwestur, ui: &mut egui::Ui) {
                                             Some(add_icon),
                                             "New Field",
                                             ui.available_width(),
+                                            ui.visuals().text_color(),
                                         ))
                                         .clicked()
                                     {
@@ -1146,7 +1161,12 @@ fn payload_editor(app: &mut Reqwestur, ui: &mut egui::Ui) {
                             }
                             ui.with_layout(egui::Layout::bottom_up(egui::Align::Center), |ui| {
                                 if ui
-                                    .add(default_button(None, "Done!", ui.available_width()))
+                                    .add(default_button(
+                                        None,
+                                        "Done!",
+                                        ui.available_width(),
+                                        ui.visuals().text_color(),
+                                    ))
                                     .clicked()
                                 {
                                     app.payload_editor_open = false;
@@ -1181,6 +1201,7 @@ fn certificate_editor(app: &mut Reqwestur, ui: &mut egui::Ui) {
                                 Some(save_icon.clone()),
                                 "Confirm & Close!",
                                 ui.available_width(),
+                                ui.visuals().text_color(),
                             ),
                         )
                         .clicked()
@@ -1197,6 +1218,7 @@ fn certificate_editor(app: &mut Reqwestur, ui: &mut egui::Ui) {
                                 Some(save_icon),
                                 "Validate Certificates",
                                 ui.available_width(),
+                                ui.visuals().text_color(),
                             ),
                         )
                         .clicked()
@@ -1244,6 +1266,7 @@ fn certificate_editor(app: &mut Reqwestur, ui: &mut egui::Ui) {
                                     Some(upload_icon),
                                     "Select a PFX.",
                                     ui.available_width(),
+                                    ui.visuals().text_color(),
                                 ))
                                 .clicked()
                             {
@@ -1263,6 +1286,7 @@ fn certificate_editor(app: &mut Reqwestur, ui: &mut egui::Ui) {
                                         Some(bin_icon),
                                         "Remove PFX.",
                                         ui.available_width(),
+                                        ui.visuals().text_color(),
                                     ))
                                     .clicked()
                                 {
