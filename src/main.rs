@@ -11,8 +11,7 @@ use crate::utils::reqwestur::Reqwestur;
 /// The main application runner
 ///
 /// Spawns a new native eframe application with the provided parameters
-#[tokio::main]
-async fn main() -> Result<(), eframe::Error> {
+fn main() -> Result<(), eframe::Error> {
     let icon: &[u8] = include_bytes!("assets/icon.png");
     let img: image::DynamicImage = image::load_from_memory(icon).unwrap();
 
@@ -26,7 +25,7 @@ async fn main() -> Result<(), eframe::Error> {
                 width: 288,
                 height: 288,
             })),
-        persist_window: true,
+        persist_window: false,
         ..Default::default()
     };
 

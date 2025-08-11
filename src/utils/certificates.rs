@@ -1,7 +1,7 @@
 use crate::ui::widgets::notification::Notification;
 
 #[derive(Default, serde::Deserialize, serde::Serialize, Clone, Eq, PartialEq)]
-pub enum CertificatesStatus {
+pub enum CertificateStatus {
     /// If the certificate has not been loaded
     #[default]
     UNCONFIRMED,
@@ -16,9 +16,9 @@ pub enum CertificatesStatus {
 /// A struct to contain all certificate related information
 #[derive(Default, serde::Deserialize, serde::Serialize, Clone)]
 #[serde(default)]
-pub struct Certificates {
+pub struct Certificate {
     /// Whether Certificates are required, used to suggest whether certificates are loaded or not.
-    pub required: bool,
+    // pub required: bool,
 
     /// The file path to the selected certificate.
     pub file_path: std::path::PathBuf,
@@ -27,7 +27,7 @@ pub struct Certificates {
     pub passphrase: String,
 
     /// The status of the loaded certificate.
-    pub status: CertificatesStatus,
+    pub status: CertificateStatus,
 
     /// A notification style message to indicate information.
     pub notification: Option<Notification>,
@@ -37,7 +37,7 @@ pub struct Certificates {
     pub identity: Option<reqwest::Identity>,
 }
 
-impl Certificates {
+impl Certificate {
     /// Import the certificate based on the file path and passphrase
     pub fn import(&self) -> Result<reqwest::Identity, String> {
         match std::fs::read(&self.file_path) {

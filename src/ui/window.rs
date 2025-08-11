@@ -16,7 +16,7 @@ use crate::{
         pip::pip,
     },
     utils::{
-        certificates::{Certificates, CertificatesStatus},
+        certificates::{Certificate, CertificateStatus},
         request::{ContentType, Method, Request},
         reqwestur::{AppShortcuts, AppView, Reqwestur},
         traits::ToColour,
@@ -37,6 +37,9 @@ pub fn window(app: &mut Reqwestur, ui: &mut egui::Ui, shortcuts: AppShortcuts) {
     // Main UI //
     /////////////
 
+    let app_clone = app.clone();
+    let mut request = app_clone.request.lock().unwrap();
+
     ui.add(task_bar(app));
     ui.add(menu_panel(app, max_width));
 
@@ -45,11 +48,11 @@ pub fn window(app: &mut Reqwestur, ui: &mut egui::Ui, shortcuts: AppShortcuts) {
             ui.add(home_panel(app));
         }
         AppView::Request => {
-            ui.add(request_panel(app));
-            ui.add(viewer_panel(app));
+            ui.add(request_panel(app, &mut request));
+            ui.add(viewer_panel(&mut request));
         }
         AppView::Saved => {
-            ui.add(saved_request_panel(app));
+            ui.add(saved_request_panel(app, &mut request));
         }
         AppView::History => {
             ui.add(history_panel(app));
@@ -61,11 +64,11 @@ pub fn window(app: &mut Reqwestur, ui: &mut egui::Ui, shortcuts: AppShortcuts) {
     //////////////////////
 
     if app.header_editor_open {
-        header_editor(app, ui);
+        header_editor(app, &mut request, ui);
     }
 
     if app.payload_editor_open {
-        payload_editor(app, ui);
+        payload_editor(app, &mut request, ui);
     }
 
     if app.certificate_editor_open {
@@ -84,7 +87,7 @@ pub fn window(app: &mut Reqwestur, ui: &mut egui::Ui, shortcuts: AppShortcuts) {
 /// Register the keyboard shortcuts
 fn register_keyboard_shortcuts(app: &mut Reqwestur, ui: &mut egui::Ui, shortcuts: AppShortcuts) {
     if ui.input_mut(|input| input.consume_shortcut(&shortcuts.new)) {
-        app.request = Request::default();
+        *app.request.lock().unwrap() = Request::default();
         app.view = AppView::Request;
     }
 
@@ -417,7 +420,7 @@ fn menu_panel<'a>(app: &'a mut Reqwestur, max_width: f32) -> impl egui::Widget +
 }
 
 /// The view handling the user request & associated settings
-fn request_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
+fn request_panel<'a>(app: &'a mut Reqwestur, request: &'a mut Request) -> impl egui::Widget + 'a {
     move |ui: &mut egui::Ui| {
         // Adjust the ensure the menu is always visible, but so is the content
         let size_adjust = 250.;
@@ -430,8 +433,6 @@ fn request_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
             .default_width(ui.available_width() / 2.)
             .show(ui.ctx(), |ui| {
                 ui.add_space(5.);
-
-                app.check_sendable();
 
                 egui::ScrollArea::vertical()
                     .scroll_source(ScrollSource {
@@ -447,26 +448,24 @@ fn request_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
                                 ui.label(egui::RichText::new("Request URL").size(14.));
                                 if ui
                                     .add(
-                                        egui::TextEdit::singleline(&mut app.request.address.uri)
+                                        egui::TextEdit::singleline(&mut request.address.uri)
                                             .min_size(egui::vec2(ui.available_width(), 10.))
                                             .hint_text("http://test.com")
                                             .margin(5.),
                                     )
                                     .changed()
                                 {
-                                    if let Err(error) =
-                                        reqwest::Url::parse(&app.request.address.uri)
-                                    {
-                                        app.request.address.notification = Some(Notification {
+                                    if let Err(error) = reqwest::Url::parse(&request.address.uri) {
+                                        request.address.notification = Some(Notification {
                                             kind: NotificationKind::ERROR,
                                             message: format!("URL cannot be parsed: {}!", error),
                                         })
                                     } else {
-                                        app.request.address.notification = None;
+                                        request.address.notification = None;
                                     }
                                 }
 
-                                if let Some(notification) = &app.request.address.notification {
+                                if let Some(notification) = &request.address.notification {
                                     ui.add(notification.display());
                                 }
                             }));
@@ -475,14 +474,14 @@ fn request_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
                                 ui.label(egui::RichText::new("Request Method").size(14.));
 
                                 egui::ComboBox::new("request_method", "Select the Method")
-                                    .selected_text(app.request.method.to_string())
+                                    .selected_text(request.method.to_string())
                                     .show_ui(ui, |ui| {
                                         for method in Method::values() {
-                                            app.request.content_type = ContentType::EMPTY;
-                                            app.request.body = None;
+                                            request.content_type = ContentType::EMPTY;
+                                            request.body = None;
 
                                             ui.selectable_value(
-                                                &mut app.request.method,
+                                                &mut request.method,
                                                 method.clone(),
                                                 method.to_string(),
                                             );
@@ -490,7 +489,7 @@ fn request_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
                                     });
 
                                 if [Method::PATCH, Method::POST, Method::PUT]
-                                    .contains(&app.request.method)
+                                    .contains(&request.method)
                                 {
                                     let edit_icon = egui::include_image!("../assets/pen.svg");
                                     if ui
@@ -528,19 +527,12 @@ fn request_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
                                 .add(padded_group(|ui| {
                                     ui.label(egui::RichText::new("Certificates").size(14.));
 
-                                    if ui
-                                        .checkbox(
-                                            &mut app.certificates.required,
-                                            "Use Certificates?",
-                                        )
-                                        .changed()
-                                    {
-                                        if !app.certificates.required {
-                                            app.certificates = Certificates::default();
-                                        }
-                                    }
+                                    ui.checkbox(
+                                        &mut app.use_certificate_authentication,
+                                        "Use Certificates?",
+                                    );
 
-                                    if app.certificates.required {
+                                    if app.use_certificate_authentication {
                                         let edit_icon = egui::include_image!("../assets/pen.svg");
                                         if ui
                                             .add(default_button(
@@ -553,10 +545,8 @@ fn request_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
                                         {
                                             app.certificate_editor_open = true;
                                         }
-                                    }
-
-                                    if let Some(notification) = &app.certificates.notification {
-                                        ui.add(notification.display());
+                                    } else {
+                                        app.certificate = None;
                                     }
                                 }))
                                 .rect;
@@ -578,7 +568,7 @@ fn request_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
                                         egui::include_image!("../assets/paper_plane.svg");
                                     if ui
                                         .add_enabled(
-                                            app.request.sendable,
+                                            true,
                                             default_button(
                                                 Some(send_icon),
                                                 "Send!",
@@ -588,10 +578,11 @@ fn request_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
                                         )
                                         .clicked()
                                     {
-                                        let _ = app.send();
+                                        let mut app_clone = app.clone();
+                                        std::thread::spawn(move || app_clone.send());
                                     }
 
-                                    if let Some(notification) = &app.request.notification {
+                                    if let Some(notification) = &request.notification {
                                         ui.add(notification.display());
                                     }
                                 },
@@ -603,7 +594,10 @@ fn request_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
     }
 }
 /// The view handling the user's saved requests
-fn saved_request_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
+fn saved_request_panel<'a>(
+    app: &'a mut Reqwestur,
+    request: &'a mut Request,
+) -> impl egui::Widget + 'a {
     move |ui: &mut egui::Ui| {
         egui::CentralPanel::default()
             .show(ui.ctx(), |ui| {
@@ -637,6 +631,7 @@ fn saved_request_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
                                                     sendable: _,
                                                     response: _,
                                                     notification: _,
+                                                    event: _,
                                                 } = row_data;
 
                                                 // Create widget to add
@@ -702,7 +697,7 @@ fn saved_request_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
                                                                 .clicked()
                                                                 || saved_response_pip.clicked()
                                                             {
-                                                                app.request = row_data.clone();
+                                                                *request = row_data.clone();
                                                                 app.view = AppView::Request;
                                                             }
                                                         }
@@ -777,7 +772,8 @@ fn history_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
                                                             ))
                                                             .clicked()
                                                         {
-                                                            app.request = row_data.clone();
+                                                            *app.request.lock().unwrap() =
+                                                                row_data.clone();
                                                             app.view = AppView::Request;
                                                         }
 
@@ -807,6 +803,7 @@ fn history_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
                                                                 sendable: _,
                                                                 response: _,
                                                                 notification: _,
+                                                                event: _,
                                                             } = row_data.clone();
 
                                                             app.saved_requests.push(Request {
@@ -980,7 +977,7 @@ fn home_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
 }
 
 /// The panel showing the request's response
-fn viewer_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
+fn viewer_panel(request: &mut Request) -> impl egui::Widget {
     move |ui: &mut egui::Ui| {
         let frame = egui::frame::Frame {
             outer_margin: 10.0.into(),
@@ -996,108 +993,118 @@ fn viewer_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
                         mouse_wheel: true,
                     })
                     .show(ui, |ui| {
-                        let enabled_editor = !app.request.response.body.is_empty();
-                        let response = app.request.response.clone();
+                        let response = request.response.clone();
+                        match request.event {
+                            crate::utils::request::RequestEvent::UNSENT => {
+                                ui.label("You haven't made a request yet!");
+                            }
+                            crate::utils::request::RequestEvent::PENDING => {
+                                ui.add_sized(
+                                    egui::vec2(ui.available_width(), ui.available_height()),
+                                    egui::Spinner::new().size(ui.available_width() / 10.),
+                                );
+                            }
+                            crate::utils::request::RequestEvent::SENT => {
+                                ui.add(padded_group(|ui| {
+                                    ui.horizontal(|ui| {
+                                        ui.label("Response Status:");
+                                        ui.with_layout(
+                                            egui::Layout::left_to_right(egui::Align::Max)
+                                                .with_main_justify(true)
+                                                .with_main_align(egui::Align::LEFT),
+                                            |ui| {
+                                                ui.label(
+                                                    egui::RichText::new(
+                                                        response.status_code.to_string(),
+                                                    )
+                                                    .color(response.status_code.to_colour()),
+                                                );
+                                            },
+                                        );
+                                    });
+                                }));
 
-                        if !enabled_editor {
-                            ui.label("You haven't made a request yet!");
-                        } else {
-                            ui.add(padded_group(|ui| {
-                                ui.horizontal(|ui| {
-                                    ui.label("Response Status:");
-                                    ui.with_layout(
-                                        egui::Layout::left_to_right(egui::Align::Max)
-                                            .with_main_justify(true)
-                                            .with_main_align(egui::Align::LEFT),
-                                        |ui| {
-                                            ui.label(
-                                                egui::RichText::new(
-                                                    response.status_code.to_string(),
-                                                )
-                                                .color(response.status_code.to_colour()),
-                                            );
-                                        },
-                                    );
-                                });
-                            }));
-
-                            ui.add(padded_group(|ui| {
-                                egui::CollapsingHeader::new("Response Headers").show_unindented(
-                                    ui,
-                                    |ui| {
-                                        egui::ScrollArea::vertical()
-                                            .scroll_source(ScrollSource {
-                                                scroll_bar: true,
-                                                drag: false,
-                                                mouse_wheel: true,
-                                            })
-                                            .show(ui, |ui| {
-                                                for (name, value) in
-                                                    &mut app.request.response.headers
-                                                {
-                                                    ui.with_layout(
-                                                        egui::Layout::right_to_left(
-                                                            egui::Align::Min,
-                                                        ),
-                                                        |ui| {
-                                                            ui.add(
-                                                                egui::TextEdit::singleline(value)
+                                ui.add(padded_group(|ui| {
+                                    egui::CollapsingHeader::new("Response Headers")
+                                        .show_unindented(ui, |ui| {
+                                            egui::ScrollArea::vertical()
+                                                .scroll_source(ScrollSource {
+                                                    scroll_bar: true,
+                                                    drag: false,
+                                                    mouse_wheel: true,
+                                                })
+                                                .show(ui, |ui| {
+                                                    for (name, value) in
+                                                        &mut request.response.headers
+                                                    {
+                                                        ui.with_layout(
+                                                            egui::Layout::right_to_left(
+                                                                egui::Align::Min,
+                                                            ),
+                                                            |ui| {
+                                                                ui.add(
+                                                                    egui::TextEdit::singleline(
+                                                                        value,
+                                                                    )
                                                                     .desired_width(
                                                                         ui.available_width() / 2.,
                                                                     )
                                                                     .margin(5.),
-                                                            );
-                                                            ui.add(
-                                                                egui::TextEdit::singleline(name)
+                                                                );
+                                                                ui.add(
+                                                                    egui::TextEdit::singleline(
+                                                                        name,
+                                                                    )
                                                                     .desired_width(
                                                                         ui.available_width(),
                                                                     )
                                                                     .margin(5.),
-                                                            );
-                                                        },
-                                                    );
-                                                }
-                                            });
-                                    },
-                                );
-                            }));
+                                                                );
+                                                            },
+                                                        );
+                                                    }
+                                                });
+                                        });
+                                }));
 
-                            egui::Frame::new()
-                                .stroke(egui::Stroke::new(
-                                    1.,
-                                    ui.style().noninteractive().bg_stroke.color,
-                                ))
-                                .corner_radius(5.)
-                                .show(ui, |ui| {
-                                    let theme =
+                                egui::Frame::new()
+                                    .stroke(egui::Stroke::new(
+                                        1.,
+                                        ui.style().noninteractive().bg_stroke.color,
+                                    ))
+                                    .corner_radius(5.)
+                                    .show(ui, |ui| {
+                                        let theme =
                                         egui_extras::syntax_highlighting::CodeTheme::from_memory(
                                             ui.ctx(),
                                             ui.style(),
                                         );
-                                    let mut layouter =
-                                        |ui: &egui::Ui, buf: &dyn egui::TextBuffer, _| {
-                                            let mut layout_job =
-                                                egui_extras::syntax_highlighting::highlight(
-                                                    ui.ctx(),
-                                                    ui.style(),
-                                                    &theme.clone(),
-                                                    buf.as_str(),
-                                                    "json",
-                                                );
+                                        let mut layouter =
+                                            |ui: &egui::Ui, buf: &dyn egui::TextBuffer, _| {
+                                                let mut layout_job =
+                                                    egui_extras::syntax_highlighting::highlight(
+                                                        ui.ctx(),
+                                                        ui.style(),
+                                                        &theme.clone(),
+                                                        buf.as_str(),
+                                                        "json",
+                                                    );
 
-                                            // Don't allow the wrap to reach the end of the TextEdit
-                                            layout_job.wrap.max_width = ui.available_width() - 20.;
+                                                // Don't allow the wrap to reach the end of the TextEdit
+                                                layout_job.wrap.max_width =
+                                                    ui.available_width() - 20.;
 
-                                            ui.fonts(|f| f.layout_job(layout_job))
-                                        };
+                                                ui.fonts(|f| f.layout_job(layout_job))
+                                            };
 
-                                    ui.add(
-                                        egui::TextEdit::multiline(&mut app.request.response.body)
-                                            .code_editor()
-                                            .layouter(&mut layouter)
-                                            .desired_width(ui.available_width()),
-                                    );
-                                });
+                                        ui.add(
+                                            egui::TextEdit::multiline(&mut request.response.body)
+                                                .code_editor()
+                                                .layouter(&mut layouter)
+                                                .desired_width(ui.available_width()),
+                                        );
+                                    });
+                            }
                         }
                     });
             })
@@ -1106,7 +1113,7 @@ fn viewer_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
 }
 
 /// The header editor window
-fn header_editor(app: &mut Reqwestur, ui: &mut egui::Ui) {
+fn header_editor(app: &mut Reqwestur, request: &mut Request, ui: &mut egui::Ui) {
     ui.ctx().show_viewport_immediate(
         egui::ViewportId::from_hash_of("header_editor"),
         egui::ViewportBuilder::default()
@@ -1124,9 +1131,7 @@ fn header_editor(app: &mut Reqwestur, ui: &mut egui::Ui) {
                     ))
                     .clicked()
                 {
-                    app.request
-                        .headers
-                        .push((String::default(), String::default()));
+                    request.headers.push((String::default(), String::default()));
                 }
 
                 ui.add_space(2.);
@@ -1137,11 +1142,11 @@ fn header_editor(app: &mut Reqwestur, ui: &mut egui::Ui) {
                     .auto_shrink(false)
                     .max_height(ui.available_height() - 34.)
                     .max_width(ui.available_width())
-                    .show_rows(ui, 18., app.request.headers.len(), |ui, row_range| {
+                    .show_rows(ui, 18., request.headers.len(), |ui, row_range| {
                         for row in row_range {
                             ui.group(|ui| {
                                 ui.horizontal(|ui| {
-                                    if let Some((name, value)) = app.request.headers.get_mut(row) {
+                                    if let Some((name, value)) = request.headers.get_mut(row) {
                                         let name_editor = egui::TextEdit::singleline(name)
                                             .hint_text("Header Name")
                                             .margin(5.)
@@ -1184,7 +1189,7 @@ fn header_editor(app: &mut Reqwestur, ui: &mut egui::Ui) {
 }
 
 /// The payload editor window
-fn payload_editor(app: &mut Reqwestur, ui: &mut egui::Ui) {
+fn payload_editor(app: &mut Reqwestur, request: &mut Request, ui: &mut egui::Ui) {
     ui.ctx().show_viewport_immediate(
         egui::ViewportId::from_hash_of("payload_editor"),
         egui::ViewportBuilder::default()
@@ -1193,11 +1198,11 @@ fn payload_editor(app: &mut Reqwestur, ui: &mut egui::Ui) {
         |context, _class| {
             egui::CentralPanel::default().show(ui.ctx(), |ui| {
                 egui::ComboBox::new("body_type_dropdown", "Payload Type")
-                    .selected_text(&app.request.content_type.to_string())
+                    .selected_text(&request.content_type.to_string())
                     .show_ui(ui, |ui| {
                         for body_type in ContentType::values() {
                             ui.selectable_value(
-                                &mut app.request.content_type,
+                                &mut request.content_type,
                                 body_type.clone(),
                                 body_type.to_string(),
                             );
@@ -1212,9 +1217,9 @@ fn payload_editor(app: &mut Reqwestur, ui: &mut egui::Ui) {
                     .max_height(ui.available_height())
                     .show(ui, |ui| {
                         ui.with_layout(egui::Layout::top_down_justified(egui::Align::Min), |ui| {
-                            match app.request.content_type {
+                            match request.content_type {
                                 ContentType::EMPTY => {
-                                    app.request.body = None;
+                                    request.body = None;
                                 }
                                 ContentType::XWWWFORMURLENCODED => {
                                     let add_icon = egui::include_image!("../assets/plus.svg");
@@ -1227,9 +1232,7 @@ fn payload_editor(app: &mut Reqwestur, ui: &mut egui::Ui) {
                                         ))
                                         .clicked()
                                     {
-                                        app.request
-                                            .params
-                                            .push((String::default(), String::default()));
+                                        request.params.push((String::default(), String::default()));
                                     }
 
                                     ui.add_space(2.);
@@ -1243,13 +1246,13 @@ fn payload_editor(app: &mut Reqwestur, ui: &mut egui::Ui) {
                                         .show_rows(
                                             ui,
                                             18.,
-                                            app.request.params.len(),
+                                            request.params.len(),
                                             |ui, row_range| {
                                                 for row in row_range {
                                                     ui.group(|ui| {
                                                         ui.horizontal(|ui| {
                                                             if let Some((name, value)) =
-                                                                app.request.params.get_mut(row)
+                                                                request.params.get_mut(row)
                                                             {
                                                                 let name_editor =
                                                                     egui::TextEdit::singleline(
@@ -1289,6 +1292,7 @@ fn payload_editor(app: &mut Reqwestur, ui: &mut egui::Ui) {
                                 }
                                 ContentType::MULTIPART => todo!(),
                                 ContentType::JSON | ContentType::TEXT => {
+                                    let content_type = request.content_type.clone();
                                     let theme =
                                         egui_extras::syntax_highlighting::CodeTheme::from_memory(
                                             ui.ctx(),
@@ -1302,7 +1306,7 @@ fn payload_editor(app: &mut Reqwestur, ui: &mut egui::Ui) {
                                                     ui.style(),
                                                     &theme.clone(),
                                                     buf.as_str(),
-                                                    match app.request.content_type {
+                                                    match content_type {
                                                         ContentType::JSON => "json",
                                                         _ => "text",
                                                     },
@@ -1310,7 +1314,7 @@ fn payload_editor(app: &mut Reqwestur, ui: &mut egui::Ui) {
                                             ui.fonts(|f| f.layout_job(layout_job))
                                         };
 
-                                    match &mut app.request.body {
+                                    match &mut request.body {
                                         Some(body) => {
                                             ui.add_sized(
                                                 egui::vec2(
@@ -1323,7 +1327,7 @@ fn payload_editor(app: &mut Reqwestur, ui: &mut egui::Ui) {
                                                     .desired_width(ui.available_width()),
                                             );
                                         }
-                                        _ => app.request.body = Some(String::default()),
+                                        _ => request.body = Some(String::default()),
                                     }
                                 }
                             }
@@ -1357,128 +1361,135 @@ fn certificate_editor(app: &mut Reqwestur, ui: &mut egui::Ui) {
         egui::ViewportId::from_hash_of("certificate_editor"),
         egui::ViewportBuilder::default()
             .with_title("Certificate Editor")
-            .with_inner_size([500.0, 500.0]),
+            .with_inner_size([500.0, 500.0])
+            .with_min_inner_size([500.0, 500.0]),
         |context, _class| {
             egui::CentralPanel::default().show(ui.ctx(), |ui| {
-                ui.with_layout(egui::Layout::bottom_up(egui::Align::Min), |ui| {
-                    let save_icon = egui::include_image!("../assets/floppy.svg");
-                    if ui
-                        .add_enabled(
-                            app.certificates.status == CertificatesStatus::OK,
-                            default_button(
-                                Some(save_icon.clone()),
-                                "Confirm & Close!",
-                                ui.available_width(),
-                                ui.visuals().text_color(),
-                            ),
-                        )
-                        .clicked()
-                    {
-                        app.certificate_editor_open = false;
-                        app.certificates.notification = None;
-                    }
-
-                    if ui
-                        .add_enabled(
-                            !app.certificates.passphrase.is_empty()
-                                && app.certificates.file_path.file_name().is_some(),
-                            default_button(
-                                Some(save_icon),
-                                "Validate Certificates",
-                                ui.available_width(),
-                                ui.visuals().text_color(),
-                            ),
-                        )
-                        .clicked()
-                    {
-                        match app.certificates.import() {
-                            Ok(identity) => {
-                                app.certificates.status = CertificatesStatus::OK;
-                                app.certificates.notification = Some(Notification {
-                                    kind: NotificationKind::INFO,
-                                    message: "Certificate loaded successfully!".to_string(),
-                                });
-                                app.certificates.identity = Some(identity);
-                            }
-                            Err(error) => {
-                                app.certificates.status = CertificatesStatus::ERROR;
-                                app.certificates.notification = Some(Notification {
-                                    kind: NotificationKind::ERROR,
-                                    message: error,
-                                });
-                            }
-                        }
-                    }
-
-                    if let Some(notification) = &app.certificates.notification {
-                        ui.add(notification.display());
-                    }
-
-                    if app.certificates.status == CertificatesStatus::UNCONFIRMED {
-                        ui.label("No certificates have been loaded.");
-                    }
-
-                    ui.vertical(|ui| {
-                        ui.add(padded_group(|ui| {
-                            let file_name = match app.certificates.file_path.file_name() {
-                                Some(file_name) => {
+                ui.vertical(|ui| {
+                    ui.add(padded_group(|ui| {
+                        let file_name = match &app.certificate {
+                            Some(certificate) => {
+                                if let Some(file_name) = certificate.file_path.file_name() {
                                     file_name.to_str().unwrap_or("Error reading file name.")
+                                } else {
+                                    "No file selected."
                                 }
-                                None => "No file selected.",
-                            };
-                            ui.label(format!("Selected File: {}", file_name));
+                            }
+                            None => "No file selected.",
+                        };
+                        ui.label(format!("Selected File: {}", file_name));
 
-                            let upload_icon = egui::include_image!("../assets/upload.svg");
+                        let upload_icon = egui::include_image!("../assets/upload.svg");
+                        if ui
+                            .add(default_button(
+                                Some(upload_icon),
+                                "Select a PFX.",
+                                ui.available_width(),
+                                ui.visuals().text_color(),
+                            ))
+                            .clicked()
+                        {
+                            let mut certificate = Certificate::default();
+                            if let Some(file) = rfd::FileDialog::new()
+                                .add_filter("PFX", &["pfx"])
+                                .set_directory("/")
+                                .pick_file()
+                            {
+                                certificate.file_path = file;
+                            }
+
+                            app.certificate = Some(certificate);
+                        }
+
+                        if let Some(certificate) = &mut app.certificate {
+                            if certificate.file_path.exists() {
+                                ui.add(padded_group(|ui| {
+                                    ui.label("Certificate Passphrase:");
+                                    ui.add_sized(
+                                        egui::vec2(ui.available_width(), 20.),
+                                        egui::TextEdit::singleline(&mut certificate.passphrase)
+                                            .margin(5.)
+                                            .password(true),
+                                    );
+                                }));
+                            }
+
+                            let bin_icon = egui::include_image!("../assets/trash.svg");
                             if ui
                                 .add(default_button(
-                                    Some(upload_icon),
-                                    "Select a PFX.",
+                                    Some(bin_icon),
+                                    "Remove PFX.",
                                     ui.available_width(),
                                     ui.visuals().text_color(),
                                 ))
                                 .clicked()
                             {
-                                if let Some(file) = rfd::FileDialog::new()
-                                    .add_filter("PFX", &["pfx"])
-                                    .set_directory("/")
-                                    .pick_file()
-                                {
-                                    app.certificates.file_path = file;
+                                app.certificate = None;
+                            }
+                        }
+                    }));
+                });
+
+                if let Some(certificate) = &mut app.certificate {
+                    ui.with_layout(egui::Layout::bottom_up(egui::Align::Min), |ui| {
+                        let save_icon = egui::include_image!("../assets/floppy.svg");
+                        if ui
+                            .add_enabled(
+                                certificate.status == CertificateStatus::OK,
+                                default_button(
+                                    Some(save_icon.clone()),
+                                    "Confirm & Close!",
+                                    ui.available_width(),
+                                    ui.visuals().text_color(),
+                                ),
+                            )
+                            .clicked()
+                        {
+                            app.certificate_editor_open = false;
+                            certificate.notification = None;
+                        }
+
+                        if ui
+                            .add_enabled(
+                                !certificate.passphrase.is_empty()
+                                    && certificate.file_path.file_name().is_some(),
+                                default_button(
+                                    Some(save_icon),
+                                    "Validate Certificates",
+                                    ui.available_width(),
+                                    ui.visuals().text_color(),
+                                ),
+                            )
+                            .clicked()
+                        {
+                            match certificate.import() {
+                                Ok(identity) => {
+                                    certificate.status = CertificateStatus::OK;
+                                    certificate.notification = Some(Notification {
+                                        kind: NotificationKind::INFO,
+                                        message: "Certificate loaded successfully!".to_string(),
+                                    });
+                                    certificate.identity = Some(identity);
+                                }
+                                Err(error) => {
+                                    certificate.status = CertificateStatus::ERROR;
+                                    certificate.notification = Some(Notification {
+                                        kind: NotificationKind::ERROR,
+                                        message: error,
+                                    });
                                 }
                             }
+                        }
 
-                            if app.certificates.file_path.exists() {
-                                let bin_icon = egui::include_image!("../assets/trash.svg");
-                                if ui
-                                    .add(default_button(
-                                        Some(bin_icon),
-                                        "Remove PFX.",
-                                        ui.available_width(),
-                                        ui.visuals().text_color(),
-                                    ))
-                                    .clicked()
-                                {
-                                    app.certificates = Certificates {
-                                        required: app.certificates.required,
-                                        ..Default::default()
-                                    };
-                                }
-                            }
-                        }));
+                        if let Some(notification) = &certificate.notification {
+                            ui.add(notification.display());
+                        }
 
-                        if app.certificates.file_path.exists() {
-                            ui.add(padded_group(|ui| {
-                                ui.label("Certificate Passphrase:");
-                                ui.add_sized(
-                                    egui::vec2(ui.available_width(), 20.),
-                                    egui::TextEdit::singleline(&mut app.certificates.passphrase)
-                                        .margin(5.)
-                                        .password(true),
-                                );
-                            }));
+                        if certificate.status == CertificateStatus::UNCONFIRMED {
+                            ui.label("No certificates have been loaded.");
                         }
                     });
-                });
+                }
 
                 ui.add_space(5.);
             });

@@ -126,6 +126,15 @@ pub struct Address {
     pub notification: Option<Notification>,
 }
 
+/// The request event types
+#[derive(Default, serde::Deserialize, serde::Serialize, Clone, Eq, PartialEq)]
+pub enum RequestEvent {
+    #[default]
+    UNSENT,
+    PENDING,
+    SENT,
+}
+
 /// The struct containing the HTTP request details
 #[derive(Default, serde::Deserialize, serde::Serialize, Clone)]
 #[serde(default)]
@@ -159,6 +168,8 @@ pub struct Request {
 
     /// Contains any notification related to the overall request
     pub notification: Option<Notification>,
+
+    pub event: RequestEvent,
 }
 
 impl Request {

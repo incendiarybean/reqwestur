@@ -1,4 +1,7 @@
-use std::str::FromStr;
+use std::{
+    str::FromStr,
+    sync::{Arc, Mutex},
+};
 
 use eframe::egui::{self};
 
@@ -8,8 +11,8 @@ use crate::{
         widgets::notification::{Notification, NotificationKind},
     },
     utils::{
-        certificates::{Certificates, CertificatesStatus},
-        request::{ContentType, Method, Request, Response},
+        certificates::{Certificate, CertificateStatus},
+        request::{ContentType, Method, Request, RequestEvent, Response},
     },
 };
 
@@ -52,9 +55,11 @@ pub struct Reqwestur {
     pub view: AppView,
 
     // Request Panel
-    pub request: Request,
+    pub request: Arc<Mutex<Request>>,
+    pub test_req: Arc<Mutex<i32>>,
     pub saved_requests: Vec<Request>,
-    pub certificates: Certificates,
+    pub certificate: Option<Certificate>,
+    pub use_certificate_authentication: bool,
 
     // History Panel
     pub history: Vec<Request>,
@@ -78,9 +83,11 @@ impl Default for Reqwestur {
             view: AppView::default(),
 
             // Request
-            request: Request::default(),
+            request: Arc::new(Mutex::new(Request::default())),
+            test_req: Arc::new(Mutex::new(i32::default())),
             saved_requests: Vec::new(),
-            certificates: Certificates::default(),
+            certificate: None,
+            use_certificate_authentication: false,
 
             // History
             history: Vec::new(),
@@ -134,7 +141,7 @@ impl Reqwestur {
             // Create new app to generate mutables
             return Self {
                 // Create fresh request
-                request: Request::default(),
+                request: Arc::new(Mutex::new(Request::default())),
 
                 // Reset window values
                 header_editor_open: false,
@@ -153,16 +160,10 @@ impl Reqwestur {
 
     /// A function to send the built request
     pub fn send(&mut self) -> Result<Response, Notification> {
-        if !self.check_sendable() {
-            let notification = Notification {
-                kind: NotificationKind::ERROR,
-                message: format!("The request is not in a sendable state"),
-            };
-            self.request.notification(&notification);
-            return Err(notification);
-        }
+        self.request.lock().unwrap().event = RequestEvent::PENDING;
+        let mut request = self.request.lock().unwrap().clone();
 
-        self.request.response = Response::default();
+        request.response = Response::default();
 
         let Request {
             method,
@@ -175,37 +176,38 @@ impl Reqwestur {
             sendable: _,
             response: _,
             notification: _,
-        } = self.request.clone();
+            event: _,
+        } = request.clone();
 
         let mut client_builder = reqwest::blocking::ClientBuilder::new();
 
-        if self.certificates.required {
-            if self.certificates.file_path.exists() && !self.certificates.passphrase.is_empty() {
-                let (kind, message) = match self.certificates.import() {
+        if let Some(certificate) = &mut self.certificate {
+            if certificate.file_path.exists() && !certificate.passphrase.is_empty() {
+                let (kind, message) = match certificate.import() {
                     Ok(identity) => {
-                        self.certificates.status = CertificatesStatus::OK;
-                        self.certificates.identity = Some(identity);
+                        certificate.status = CertificateStatus::OK;
+                        certificate.identity = Some(identity);
                         (
                             NotificationKind::INFO,
                             "Certificate loaded successfully!".to_string(),
                         )
                     }
                     Err(error) => {
-                        self.certificates.status = CertificatesStatus::OK;
+                        certificate.status = CertificateStatus::OK;
                         (NotificationKind::ERROR, error)
                     }
                 };
-                self.certificates.notification = Some(Notification { kind, message });
+                certificate.notification = Some(Notification { kind, message });
             }
 
-            if let Some(identity) = self.certificates.identity.clone() {
+            if let Some(identity) = certificate.identity.clone() {
                 client_builder = client_builder.identity(identity);
             } else {
                 let notification = Notification {
                     kind: NotificationKind::WARN,
                     message: "Cannot find certificates, have you added them?".to_string(),
                 };
-                self.request.notification(&notification);
+                request.notification(&notification);
                 return Err(notification);
             }
         }
@@ -238,7 +240,7 @@ impl Reqwestur {
             built_request = built_request.headers(header_list)
         }
 
-        if self.request.content_type != ContentType::EMPTY {
+        if request.content_type != ContentType::EMPTY {
             built_request = match content_type {
                 ContentType::MULTIPART => {
                     let mut form = reqwest::blocking::multipart::Form::new();
@@ -258,9 +260,9 @@ impl Reqwestur {
             };
         }
 
-        let request = built_request.build().unwrap();
+        let http_request = built_request.build().unwrap();
 
-        let (status, headers, text) = match client.execute(request) {
+        let (status, headers, text) = match client.execute(http_request) {
             Ok(response) => (
                 response.status().as_u16(),
                 response.headers().clone(),
@@ -289,7 +291,7 @@ impl Reqwestur {
                 kind: NotificationKind::ERROR,
                 message: format!("Could not prettify JSON - {:?}", error),
             };
-            self.request.notification(&notification);
+            request.notification(&notification);
             return Err(notification);
         }
 
@@ -304,47 +306,17 @@ impl Reqwestur {
             body: pretty_string.unwrap(),
         };
 
-        self.request.notification(&Notification {
+        request.notification(&Notification {
             kind: NotificationKind::INFO,
             message: "Sent successfully.".to_string(),
         });
-        self.request.response = response.clone();
-        self.request.timestamp = chrono::Utc::now().format("%d/%m/%Y %H:%M").to_string();
-        self.history.push(self.request.clone());
+        request.response = response.clone();
+        request.timestamp = chrono::Utc::now().format("%d/%m/%Y %H:%M").to_string();
+        request.event = RequestEvent::SENT;
+
+        *self.request.lock().unwrap() = request;
 
         Ok(response)
-    }
-
-    /// A function to check if the request is in a sendable state
-    pub fn check_sendable(&mut self) -> bool {
-        let uri_ok: bool = reqwest::Url::parse(&self.request.address.uri).is_ok();
-
-        let certificate_ok = if self.certificates.required {
-            if self.certificates.status == CertificatesStatus::OK {
-                true
-            } else {
-                false
-            }
-        } else {
-            true
-        };
-
-        let no_errors = [
-            &self.certificates.notification,
-            &self.request.address.notification,
-        ]
-        .iter()
-        .all(|notification| {
-            if let Some(notification) = notification {
-                notification.kind != NotificationKind::ERROR
-            } else {
-                true
-            }
-        });
-
-        self.request.sendable = uri_ok && certificate_ok && no_errors;
-
-        self.request.sendable
     }
 }
 
