@@ -13,12 +13,10 @@ pub enum Method {
     DELETE,
 }
 
-impl Method {
-    /// A list to offer all method types for iteration
-    const OPTIONS: [Self; 5] = [Self::GET, Self::POST, Self::PUT, Self::PATCH, Self::DELETE];
-
+/// Implement the ToString function, using std::fmt::Display causes a stack overflow
+impl ToString for Method {
     /// Convert the method type to string
-    pub fn to_string(&self) -> String {
+    fn to_string(&self) -> String {
         let str = match self {
             Method::GET => "GET",
             Method::POST => "POST",
@@ -29,9 +27,12 @@ impl Method {
 
         str.to_string()
     }
+}
 
+/// Implement the ToColour function
+impl ToColour for Method {
     /// Convert the method type to associated colour
-    pub fn to_colour(&self) -> egui::Color32 {
+    fn to_colour(&self) -> egui::Color32 {
         match self {
             Method::GET => egui::Color32::LIGHT_BLUE,
             Method::POST => egui::Color32::ORANGE,
@@ -40,6 +41,11 @@ impl Method {
             Method::DELETE => egui::Color32::RED,
         }
     }
+}
+
+impl Method {
+    /// A list to offer all method types for iteration
+    const OPTIONS: [Self; 5] = [Self::GET, Self::POST, Self::PUT, Self::PATCH, Self::DELETE];
 
     /// Return an iterable of the available methods
     pub fn values() -> Vec<Method> {
@@ -81,16 +87,10 @@ pub enum ContentType {
     JSON,
 }
 
-impl ContentType {
-    const OPTIONS: [Self; 5] = [
-        Self::XWWWFORMURLENCODED,
-        Self::JSON,
-        Self::EMPTY,
-        Self::TEXT,
-        Self::MULTIPART,
-    ];
-
-    pub fn to_string(&self) -> String {
+/// Implement the ToString function, using std::fmt::Display causes a stack overflow
+impl ToString for ContentType {
+    /// Convert the content type to string
+    fn to_string(&self) -> String {
         let str = match self {
             ContentType::XWWWFORMURLENCODED => "application/x-www-form-urlencoded",
             ContentType::MULTIPART => "multipart/form-data",
@@ -101,6 +101,17 @@ impl ContentType {
 
         str.to_string()
     }
+}
+
+/// The struct containing the content type
+impl ContentType {
+    const OPTIONS: [Self; 5] = [
+        Self::XWWWFORMURLENCODED,
+        Self::JSON,
+        Self::EMPTY,
+        Self::TEXT,
+        Self::MULTIPART,
+    ];
 
     pub fn values() -> Vec<Self> {
         Vec::from(Self::OPTIONS)
@@ -119,23 +130,39 @@ pub struct Address {
 #[derive(Default, serde::Deserialize, serde::Serialize, Clone)]
 #[serde(default)]
 pub struct Request {
-    pub method: Method,
-    pub headers: Vec<(String, String)>,
-    pub address: Address,
-    pub timestamp: String,
-
-    pub content_type: ContentType,
-    pub body: Option<String>,
-    pub form_data: Vec<(String, String)>,
-
+    /// Contains whether the request is valid and sendable
     pub sendable: bool,
 
+    /// Contains the request Method
+    pub method: Method,
+
+    /// Contains the request Headers
+    pub headers: Vec<(String, String)>,
+
+    /// Contains the request URI
+    pub address: Address,
+
+    /// Contains the request's timestamp
+    pub timestamp: String,
+
+    /// Contains the request's content-type
+    pub content_type: ContentType,
+
+    /// Contains the request's body
+    pub body: Option<String>,
+
+    /// Contains the request's formdata/params
+    pub params: Vec<(String, String)>,
+
+    /// Contains the request's response
     pub response: Response,
 
+    /// Contains any notification related to the overall request
     pub notification: Option<Notification>,
 }
 
 impl Request {
+    /// A setter to set the notification
     pub fn notification(&mut self, notification: &Notification) {
         self.notification = Some(notification.to_owned());
     }

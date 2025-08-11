@@ -171,7 +171,7 @@ impl Reqwestur {
             timestamp: _,
             body,
             content_type,
-            form_data,
+            params,
             sendable: _,
             response: _,
             notification: _,
@@ -242,12 +242,12 @@ impl Reqwestur {
             built_request = match content_type {
                 ContentType::MULTIPART => {
                     let mut form = reqwest::blocking::multipart::Form::new();
-                    for (name, value) in form_data {
+                    for (name, value) in params {
                         form = form.text(name, value);
                     }
                     built_request.multipart(form)
                 }
-                ContentType::XWWWFORMURLENCODED => built_request.form(&form_data),
+                ContentType::XWWWFORMURLENCODED => built_request.form(&params),
                 _ => {
                     if let Some(body) = body {
                         built_request.body(body)

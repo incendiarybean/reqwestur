@@ -1,5 +1,5 @@
 use eframe::egui::{
-    self,
+    self, AtomExt, IntoAtoms,
     gui_zoom::kb_shortcuts::{ZOOM_IN, ZOOM_OUT},
     scroll_area::ScrollSource,
 };
@@ -626,47 +626,88 @@ fn saved_request_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
                                             .inner_margin(egui::Vec2::splat(5.))
                                             .corner_radius(5.)
                                             .show(ui, |ui| {
-                                                ui.horizontal(|ui| {
-                                                    let open_icon = egui::include_image!(
-                                                        "../assets/folder_open.svg"
-                                                    );
-                                                    if ui
-                                                        .add_sized(
-                                                            egui::vec2(32., 32.),
-                                                            egui::ImageButton::new(
-                                                                egui::Image::new(open_icon)
-                                                                    .tint(ui.visuals().text_color())
-                                                                    .fit_to_exact_size(
-                                                                        [16., 16.].into(),
-                                                                    )
-                                                                    .corner_radius(5.)
-                                                                    .alt_text("View Request"),
-                                                            ),
-                                                        )
-                                                        .clicked()
-                                                    {
-                                                        app.request = row_data.clone();
-                                                        app.view = AppView::Request;
-                                                    }
-                                                    ui.with_layout(
-                                                        egui::Layout::left_to_right(
-                                                            egui::Align::Center,
-                                                        )
-                                                        .with_main_justify(true)
-                                                        .with_main_align(egui::Align::LEFT),
-                                                        |ui| {
-                                                            ui.add(
-                                                                egui::Label::new(
-                                                                    egui::RichText::new(
-                                                                        &row_data.address.uri,
-                                                                    )
-                                                                    .size(14.),
-                                                                )
-                                                                .truncate(),
+                                                let Request {
+                                                    method,
+                                                    headers: _,
+                                                    address,
+                                                    timestamp: _,
+                                                    content_type: _,
+                                                    body: _,
+                                                    params: _,
+                                                    sendable: _,
+                                                    response: _,
+                                                    notification: _,
+                                                } = row_data;
+
+                                                // Create widget to add
+                                                let binding = method.to_string();
+
+                                                ui.with_layout(
+                                                    egui::Layout::left_to_right(
+                                                        egui::Align::Center,
+                                                    )
+                                                    .with_main_justify(true)
+                                                    .with_main_align(egui::Align::LEFT),
+                                                    |ui| {
+                                                        let open_icon = egui::include_image!(
+                                                            "../assets/folder_open.svg"
+                                                        );
+
+                                                        let desired_size = ui.fonts(|f| {
+                                                            f.glyph_width(
+                                                                &egui::FontId::default(),
+                                                                'M',
+                                                            )
+                                                        }) * (binding.len()
+                                                            as f32);
+
+                                                        // Create button and allocate rect space
+                                                        let custom_button_id =
+                                                            egui::Id::new("custom_button");
+
+                                                        let saved_request_button =
+                                                            egui::Button::new((
+                                                                egui::Image::from(open_icon)
+                                                                    .atom_size(egui::Vec2::splat(
+                                                                        20.,
+                                                                    )),
+                                                                egui::Atom::custom(
+                                                                    custom_button_id,
+                                                                    egui::vec2(
+                                                                        desired_size + 8.,
+                                                                        20.,
+                                                                    ),
+                                                                ),
+                                                                egui::RichText::new(&address.uri)
+                                                                    .size(16.)
+                                                                    .into_atoms(),
+                                                            ))
+                                                            .frame(false)
+                                                            .atom_ui(ui);
+
+                                                        // Handle adding custom content
+                                                        if let Some(rect) = saved_request_button
+                                                            .rect(custom_button_id)
+                                                        {
+                                                            let saved_response_pip = ui.put(
+                                                                rect,
+                                                                pip(
+                                                                    &binding,
+                                                                    row_data.method.to_colour(),
+                                                                ),
                                                             );
-                                                        },
-                                                    );
-                                                });
+
+                                                            if saved_request_button
+                                                                .response
+                                                                .clicked()
+                                                                || saved_response_pip.clicked()
+                                                            {
+                                                                app.request = row_data.clone();
+                                                                app.view = AppView::Request;
+                                                            }
+                                                        }
+                                                    },
+                                                );
                                             });
                                     }
                                 }
@@ -762,7 +803,7 @@ fn history_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
                                                                 timestamp: _,
                                                                 content_type,
                                                                 body,
-                                                                form_data,
+                                                                params,
                                                                 sendable: _,
                                                                 response: _,
                                                                 notification: _,
@@ -774,7 +815,7 @@ fn history_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
                                                                 address,
                                                                 content_type,
                                                                 body,
-                                                                form_data,
+                                                                params,
                                                                 ..Default::default()
                                                             });
                                                         }
@@ -863,14 +904,15 @@ fn home_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
 
                                 if ui
                                     .add(
-                                        egui::Button::image_and_text(
+                                        egui::Button::new((
                                             egui::Image::new(egui::include_image!(
                                                 "../assets/create.svg"
                                             ))
-                                            .fit_to_exact_size(egui::vec2(16., 16.))
-                                            .tint(ui.visuals().text_color()),
-                                            egui::RichText::new("Create a new request").size(14.),
-                                        )
+                                            .atom_size(egui::Vec2::splat(18.)),
+                                            egui::RichText::new("Create a new request")
+                                                .size(16.)
+                                                .into_atoms(),
+                                        ))
                                         .shortcut_text(ui.ctx().format_shortcut(
                                             &egui::KeyboardShortcut::new(
                                                 egui::Modifiers::CTRL,
@@ -886,15 +928,14 @@ fn home_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
 
                                 if ui
                                     .add(
-                                        egui::Button::image_and_text(
+                                        egui::Button::new((
                                             egui::Image::new(egui::include_image!(
                                                 "../assets/undo_history.svg"
                                             ))
-                                            .fit_to_exact_size(egui::vec2(16., 16.))
-                                            .tint(ui.visuals().text_color()),
+                                            .atom_size(egui::Vec2::splat(18.)),
                                             egui::RichText::new("View your recent requests")
-                                                .size(14.),
-                                        )
+                                                .size(16.),
+                                        ))
                                         .shortcut_text(ui.ctx().format_shortcut(
                                             &egui::KeyboardShortcut::new(
                                                 egui::Modifiers::CTRL,
@@ -910,15 +951,14 @@ fn home_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
 
                                 if ui
                                     .add(
-                                        egui::Button::image_and_text(
+                                        egui::Button::new((
                                             egui::Image::new(egui::include_image!(
                                                 "../assets/floppy.svg"
                                             ))
-                                            .fit_to_exact_size(egui::vec2(16., 16.))
-                                            .tint(ui.visuals().text_color()),
+                                            .atom_size(egui::Vec2::splat(18.)),
                                             egui::RichText::new("Open your saved requests")
-                                                .size(14.),
-                                        )
+                                                .size(16.),
+                                        ))
                                         .shortcut_text(ui.ctx().format_shortcut(
                                             &egui::KeyboardShortcut::new(
                                                 egui::Modifiers::CTRL,
@@ -1188,7 +1228,7 @@ fn payload_editor(app: &mut Reqwestur, ui: &mut egui::Ui) {
                                         .clicked()
                                     {
                                         app.request
-                                            .form_data
+                                            .params
                                             .push((String::default(), String::default()));
                                     }
 
@@ -1203,13 +1243,13 @@ fn payload_editor(app: &mut Reqwestur, ui: &mut egui::Ui) {
                                         .show_rows(
                                             ui,
                                             18.,
-                                            app.request.form_data.len(),
+                                            app.request.params.len(),
                                             |ui, row_range| {
                                                 for row in row_range {
                                                     ui.group(|ui| {
                                                         ui.horizontal(|ui| {
                                                             if let Some((name, value)) =
-                                                                app.request.form_data.get_mut(row)
+                                                                app.request.params.get_mut(row)
                                                             {
                                                                 let name_editor =
                                                                     egui::TextEdit::singleline(
