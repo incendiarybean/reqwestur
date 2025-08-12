@@ -123,7 +123,7 @@ impl ContentType {
 #[serde(default)]
 pub struct Address {
     pub uri: String,
-    pub notification: Option<Notification>,
+    pub notification: Notification,
 }
 
 /// The request event types
@@ -167,7 +167,7 @@ pub struct Request {
     pub response: Response,
 
     /// Contains any notification related to the overall request
-    pub notification: Option<Notification>,
+    pub notification: Notification,
 
     pub event: RequestEvent,
 }
@@ -175,6 +175,6 @@ pub struct Request {
 impl Request {
     /// A setter to set the notification
     pub fn notification(&mut self, notification: &Notification) {
-        self.notification = Some(notification.to_owned());
+        self.notification = notification.to_owned();
     }
 }

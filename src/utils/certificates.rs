@@ -30,7 +30,7 @@ pub struct Certificate {
     pub status: CertificateStatus,
 
     /// A notification style message to indicate information.
-    pub notification: Option<Notification>,
+    pub notification: Notification,
 
     /// The identity loaded from the certificates.
     #[serde(skip)]

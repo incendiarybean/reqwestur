@@ -17,6 +17,7 @@ use crate::{
     },
     utils::{
         certificates::{Certificate, CertificateStatus},
+        exports::{ExportType, RequestSourceType, ReqwesturIO},
         request::{ContentType, Method, Request},
         reqwestur::{AppShortcuts, AppView, Reqwestur},
         traits::ToColour,
@@ -33,15 +34,18 @@ pub fn window(app: &mut Reqwestur, ui: &mut egui::Ui, shortcuts: AppShortcuts) {
         ui.available_width() / 3.
     };
 
+    let app_clone = app.clone();
+    let mut request = app_clone.request.lock().unwrap();
+
     /////////////
     // Main UI //
     /////////////
 
-    let app_clone = app.clone();
-    let mut request = app_clone.request.lock().unwrap();
-
-    ui.add(task_bar(app));
+    ui.add(task_bar(app, &mut request));
     ui.add(menu_panel(app, max_width));
+
+    // A banner to track incoming notifications
+    app.notification.banner(ui);
 
     match app.view {
         AppView::Main => {
@@ -55,7 +59,7 @@ pub fn window(app: &mut Reqwestur, ui: &mut egui::Ui, shortcuts: AppShortcuts) {
             ui.add(saved_request_panel(app, &mut request));
         }
         AppView::History => {
-            ui.add(history_panel(app));
+            ui.add(history_panel(app, &mut request));
         }
     }
 
@@ -109,7 +113,7 @@ fn register_keyboard_shortcuts(app: &mut Reqwestur, ui: &mut egui::Ui, shortcuts
 }
 
 /// The title and toolbar at the top of the screen
-fn task_bar(app: &mut Reqwestur) -> impl egui::Widget {
+fn task_bar(app: &mut Reqwestur, request: &mut Request) -> impl egui::Widget {
     move |ui: &mut egui::Ui| {
         let frame = egui::Frame {
             fill: egui::Color32::from_hex(PRIMARY).unwrap(),
@@ -195,8 +199,39 @@ fn task_bar(app: &mut Reqwestur) -> impl egui::Widget {
                                     )
                                     .ui(ui, |ui| {
                                         ui.menu_button("Export", |ui| {
-                                            if ui.button("History").clicked() {};
-                                            if ui.button("Requests").clicked() {};
+                                            ui.menu_button("History", |ui| {
+                                                for option in ExportType::values() {
+                                                    if ui
+                                                        .button(option.to_string().to_uppercase())
+                                                        .clicked()
+                                                    {
+                                                        let history = app.history.lock().unwrap();
+                                                        if let Some(output) = ReqwesturIO::new(
+                                                            history.clone(),
+                                                            RequestSourceType::HISTORY,
+                                                            option,
+                                                        ) {
+                                                            let _ = output.export();
+                                                        }
+                                                    }
+                                                }
+                                            });
+                                            ui.menu_button("Requests", |ui| {
+                                                for option in ExportType::values() {
+                                                    if ui
+                                                        .button(option.to_string().to_uppercase())
+                                                        .clicked()
+                                                    {
+                                                        if let Some(output) = ReqwesturIO::new(
+                                                            app.saved_requests.clone(),
+                                                            RequestSourceType::SAVED,
+                                                            option,
+                                                        ) {
+                                                            let _ = output.export();
+                                                        }
+                                                    }
+                                                }
+                                            });
                                         });
 
                                         ui.menu_button("Import", |ui| {
@@ -204,7 +239,20 @@ fn task_bar(app: &mut Reqwestur) -> impl egui::Widget {
                                             if ui.button("Requests").clicked() {};
                                         });
 
-                                        if ui.button("Save Request").clicked() {};
+                                        if ui.button("Save Request").clicked() {
+                                            if request.address.uri.is_empty() {
+                                                app.notification = Notification::new(
+                                                    "Could not save request successfully!",
+                                                    NotificationKind::WARN,
+                                                );
+                                            } else {
+                                                app.saved_requests.push(request.clone());
+                                                app.notification = Notification::new(
+                                                    "Saved request successfully!",
+                                                    NotificationKind::INFO,
+                                                );
+                                            }
+                                        };
 
                                         if ui.button("Exit").clicked() {
                                             exit(1);
@@ -456,18 +504,16 @@ fn request_panel<'a>(app: &'a mut Reqwestur, request: &'a mut Request) -> impl e
                                     .changed()
                                 {
                                     if let Err(error) = reqwest::Url::parse(&request.address.uri) {
-                                        request.address.notification = Some(Notification {
-                                            kind: NotificationKind::ERROR,
-                                            message: format!("URL cannot be parsed: {}!", error),
-                                        })
+                                        request.address.notification = Notification::new(
+                                            format!("URL cannot be parsed: {}!", error),
+                                            NotificationKind::ERROR,
+                                        );
                                     } else {
-                                        request.address.notification = None;
+                                        request.address.notification.clear();
                                     }
                                 }
 
-                                if let Some(notification) = &request.address.notification {
-                                    ui.add(notification.display());
-                                }
+                                request.address.notification.display(ui);
                             }));
 
                             ui.add(padded_group(|ui| {
@@ -582,9 +628,7 @@ fn request_panel<'a>(app: &'a mut Reqwestur, request: &'a mut Request) -> impl e
                                         std::thread::spawn(move || app_clone.send());
                                     }
 
-                                    if let Some(notification) = &request.notification {
-                                        ui.add(notification.display());
-                                    }
+                                    request.notification.display(ui);
                                 },
                             );
                         });
@@ -602,7 +646,7 @@ fn saved_request_panel<'a>(
         egui::CentralPanel::default()
             .show(ui.ctx(), |ui| {
                 ui.vertical(|ui| {
-                    if app.history.len() == 0 {
+                    if app.saved_requests.len() == 0 {
                         ui.label("You haven't saved any requests yet!");
                     } else {
                         egui::ScrollArea::vertical()
@@ -715,12 +759,13 @@ fn saved_request_panel<'a>(
 }
 
 /// The view handling the user's previous requests
-fn history_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
+fn history_panel<'a>(app: &'a mut Reqwestur, request: &'a mut Request) -> impl egui::Widget + 'a {
     move |ui: &mut egui::Ui| {
+        let mut history = app.history.lock().unwrap();
         egui::CentralPanel::default()
             .show(ui.ctx(), |ui| {
                 ui.vertical(|ui| {
-                    if app.history.len() == 0 {
+                    if history.len() == 0 {
                         ui.label("You haven't made any requests yet!");
                     } else {
                         let bin_icon = egui::include_image!("../assets/trash.svg");
@@ -733,7 +778,7 @@ fn history_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
                             ))
                             .clicked()
                         {
-                            app.history = Vec::new();
+                            *history = Vec::new();
                         }
 
                         ui.add_space(2.);
@@ -744,9 +789,9 @@ fn history_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
                             .auto_shrink(false)
                             .max_height(ui.available_height())
                             .max_width(ui.available_width())
-                            .show_rows(ui, 18., app.history.len(), |ui, row_range| {
+                            .show_rows(ui, 18., history.len(), |ui, row_range| {
                                 for row in row_range.rev() {
-                                    if let Some(row_data) = app.history.get(row) {
+                                    if let Some(row_data) = history.get(row) {
                                         egui::Frame::new()
                                             .stroke(egui::Stroke::new(
                                                 1.,
@@ -772,8 +817,7 @@ fn history_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
                                                             ))
                                                             .clicked()
                                                         {
-                                                            *app.request.lock().unwrap() =
-                                                                row_data.clone();
+                                                            *request = row_data.clone();
                                                             app.view = AppView::Request;
                                                         }
 
@@ -1446,7 +1490,7 @@ fn certificate_editor(app: &mut Reqwestur, ui: &mut egui::Ui) {
                             .clicked()
                         {
                             app.certificate_editor_open = false;
-                            certificate.notification = None;
+                            certificate.notification.clear();
                         }
 
                         if ui
@@ -1465,25 +1509,21 @@ fn certificate_editor(app: &mut Reqwestur, ui: &mut egui::Ui) {
                             match certificate.import() {
                                 Ok(identity) => {
                                     certificate.status = CertificateStatus::OK;
-                                    certificate.notification = Some(Notification {
-                                        kind: NotificationKind::INFO,
-                                        message: "Certificate loaded successfully!".to_string(),
-                                    });
+                                    certificate.notification = Notification::new(
+                                        "Certificate loaded successfully!",
+                                        NotificationKind::INFO,
+                                    );
                                     certificate.identity = Some(identity);
                                 }
                                 Err(error) => {
                                     certificate.status = CertificateStatus::ERROR;
-                                    certificate.notification = Some(Notification {
-                                        kind: NotificationKind::ERROR,
-                                        message: error,
-                                    });
+                                    certificate.notification =
+                                        Notification::new(error, NotificationKind::ERROR);
                                 }
                             }
                         }
 
-                        if let Some(notification) = &certificate.notification {
-                            ui.add(notification.display());
-                        }
+                        certificate.notification.display(ui);
 
                         if certificate.status == CertificateStatus::UNCONFIRMED {
                             ui.label("No certificates have been loaded.");

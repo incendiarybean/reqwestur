@@ -56,13 +56,12 @@ pub struct Reqwestur {
 
     // Request Panel
     pub request: Arc<Mutex<Request>>,
-    pub test_req: Arc<Mutex<i32>>,
     pub saved_requests: Vec<Request>,
     pub certificate: Option<Certificate>,
     pub use_certificate_authentication: bool,
 
     // History Panel
-    pub history: Vec<Request>,
+    pub history: Arc<Mutex<Vec<Request>>>,
 
     // Editors
     pub header_editor_open: bool,
@@ -72,6 +71,9 @@ pub struct Reqwestur {
     // Modals
     pub help_modal_open: bool,
     pub about_modal_open: bool,
+
+    // Alerts
+    pub notification: Notification,
 }
 
 impl Default for Reqwestur {
@@ -84,13 +86,12 @@ impl Default for Reqwestur {
 
             // Request
             request: Arc::new(Mutex::new(Request::default())),
-            test_req: Arc::new(Mutex::new(i32::default())),
             saved_requests: Vec::new(),
             certificate: None,
             use_certificate_authentication: false,
 
             // History
-            history: Vec::new(),
+            history: Arc::new(Mutex::new(Vec::new())),
 
             // Editors
             header_editor_open: false,
@@ -100,6 +101,9 @@ impl Default for Reqwestur {
             // Modals
             help_modal_open: false,
             about_modal_open: false,
+
+            // Alerts
+            notification: Notification::default(),
         }
     }
 }
@@ -197,16 +201,17 @@ impl Reqwestur {
                         (NotificationKind::ERROR, error)
                     }
                 };
-                certificate.notification = Some(Notification { kind, message });
+                certificate.notification = Notification::new(message, kind);
             }
 
             if let Some(identity) = certificate.identity.clone() {
                 client_builder = client_builder.identity(identity);
             } else {
-                let notification = Notification {
-                    kind: NotificationKind::WARN,
-                    message: "Cannot find certificates, have you added them?".to_string(),
-                };
+                let notification = Notification::new(
+                    "Cannot find certificates, have you added them?",
+                    NotificationKind::WARN,
+                );
+
                 request.notification(&notification);
                 return Err(notification);
             }
@@ -287,10 +292,10 @@ impl Reqwestur {
         };
 
         if let Err(error) = pretty_string {
-            let notification = Notification {
-                kind: NotificationKind::ERROR,
-                message: format!("Could not prettify JSON - {:?}", error),
-            };
+            let notification = Notification::new(
+                format!("Could not prettify JSON - {:?}", error),
+                NotificationKind::ERROR,
+            );
             request.notification(&notification);
             return Err(notification);
         }
@@ -306,10 +311,10 @@ impl Reqwestur {
             body: pretty_string.unwrap(),
         };
 
-        request.notification(&Notification {
-            kind: NotificationKind::INFO,
-            message: "Sent successfully.".to_string(),
-        });
+        request.notification(&Notification::new(
+            "Sent successfully.",
+            NotificationKind::INFO,
+        ));
         request.response = response.clone();
         request.timestamp = chrono::Utc::now().format("%d/%m/%Y %H:%M").to_string();
         request.event = RequestEvent::SENT;
