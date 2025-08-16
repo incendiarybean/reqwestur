@@ -32,7 +32,7 @@ impl ToString for Method {
 /// Implement the ToColour function
 impl ToColour for Method {
     /// Convert the method type to associated colour
-    fn to_colour(&self) -> egui::Color32 {
+    fn to_colour(&self, _dark_mode: bool) -> egui::Color32 {
         match self {
             Self::GET => egui::Color32::LIGHT_BLUE,
             Self::POST => egui::Color32::ORANGE,
@@ -58,7 +58,7 @@ type StatusCode = u16;
 
 impl ToColour for StatusCode {
     /// Converts the current u16 value to a colour value (based on HTTP status codes)
-    fn to_colour(&self) -> egui::Color32 {
+    fn to_colour(&self, _dark_mode: bool) -> egui::Color32 {
         match self {
             200..=399 => egui::Color32::from_rgb(60, 215, 60),
             400..=499 => egui::Color32::ORANGE,
@@ -68,7 +68,7 @@ impl ToColour for StatusCode {
 }
 
 /// The enum containing which view the user is currently facing
-#[derive(Default, serde::Deserialize, serde::Serialize, Clone, PartialEq, Eq)]
+#[derive(Default, serde::Deserialize, serde::Serialize, Clone, Copy, PartialEq, Eq)]
 pub enum ResponseView {
     #[default]
     RESPONSE,

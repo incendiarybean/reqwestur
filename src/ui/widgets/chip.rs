@@ -1,10 +1,8 @@
 use eframe::egui::{self};
 use std::f32;
 
-use crate::utils::traits::ToColours;
-
 /// A struct containing the anatomy of the PIP
-pub struct Pip {
+pub struct Chip {
     width: Option<f32>,
     height: Option<f32>,
     padding: Option<egui::Vec2>,
@@ -13,32 +11,38 @@ pub struct Pip {
     background: egui::Color32,
 }
 
+/// A custom trait to describe the conversion of a value to a tuple of egui's Color32
+pub trait ToChipColours {
+    /// Convert from the inherited value to a tuple of egui::Color32
+    fn from(&self) -> (egui::Color32, egui::Color32);
+}
+
 /// Implement the ToColours trait, allowing multiple choices in creating background/foreground colours
-impl ToColours for egui::Color32 {
+impl ToChipColours for egui::Color32 {
     fn from(&self) -> (egui::Color32, egui::Color32) {
         (*self, egui::Color32::BLACK)
     }
 }
 
 /// Implement the ToColours trait, allowing multiple choices in creating background/foreground colours
-impl ToColours for (egui::Color32, egui::Color32) {
+impl ToChipColours for (egui::Color32, egui::Color32) {
     fn from(&self) -> (egui::Color32, egui::Color32) {
         self.to_owned()
     }
 }
 
 /// Implement the ToColours trait, allowing multiple choices in creating background/foreground colours
-impl ToColours for Option<(egui::Color32, egui::Color32)> {
+impl ToChipColours for Option<(egui::Color32, egui::Color32)> {
     fn from(&self) -> (egui::Color32, egui::Color32) {
         self.unwrap_or((egui::Color32::BLACK, egui::Color32::WHITE))
     }
 }
 
 /// Implement the PIP functionality
-impl Pip {
+impl Chip {
     /// Create a new PIP from a label and colour
     /// The PIP by default inherits the width and height of the label provided, with slight padding.
-    pub fn new<C: ToColours>(label: impl Into<String>, colour: C) -> Self {
+    pub fn new<C: ToChipColours>(label: impl Into<String>, colour: C) -> Self {
         let (background, foreground) = colour.from();
 
         Self {
@@ -102,7 +106,7 @@ impl Pip {
     pub fn create(&self) -> impl egui::Widget {
         move |ui: &mut egui::Ui| {
             // Check if values already exist in memory
-            let id = egui::Id::new("pip_text_sizes".to_owned() + &self.text);
+            let id = egui::Id::new("chip_text_sizes".to_owned() + &self.text);
             let (mut text_width, mut text_height) =
                 ui.data(|data| data.get_temp(id).unwrap_or((f32::NAN, f32::NAN)));
 

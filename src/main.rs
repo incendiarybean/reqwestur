@@ -18,6 +18,7 @@ fn main() -> Result<(), eframe::Error> {
     let options = eframe::NativeOptions {
         viewport: eframe::egui::ViewportBuilder::default()
             .with_decorations(true)
+            .with_inner_size(egui::vec2(800.0, 500.0))
             .with_min_inner_size(egui::vec2(600.0, 400.0))
             .with_resizable(true)
             .with_icon(Arc::new(egui::viewport::IconData {
