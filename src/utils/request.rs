@@ -18,11 +18,11 @@ impl ToString for Method {
     /// Convert the method type to string
     fn to_string(&self) -> String {
         let str = match self {
-            Method::GET => "GET",
-            Method::POST => "POST",
-            Method::PUT => "PUT",
-            Method::PATCH => "PATCH",
-            Method::DELETE => "DELETE",
+            Self::GET => "GET",
+            Self::POST => "POST",
+            Self::PUT => "PUT",
+            Self::PATCH => "PATCH",
+            Self::DELETE => "DELETE",
         };
 
         str.to_string()
@@ -34,11 +34,11 @@ impl ToColour for Method {
     /// Convert the method type to associated colour
     fn to_colour(&self) -> egui::Color32 {
         match self {
-            Method::GET => egui::Color32::LIGHT_BLUE,
-            Method::POST => egui::Color32::ORANGE,
-            Method::PUT => egui::Color32::ORANGE,
-            Method::PATCH => egui::Color32::ORANGE,
-            Method::DELETE => egui::Color32::RED,
+            Self::GET => egui::Color32::LIGHT_BLUE,
+            Self::POST => egui::Color32::ORANGE,
+            Self::PUT => egui::Color32::ORANGE,
+            Self::PATCH => egui::Color32::ORANGE,
+            Self::DELETE => egui::Color32::RED,
         }
     }
 }
@@ -48,7 +48,7 @@ impl Method {
     const OPTIONS: [Self; 5] = [Self::GET, Self::POST, Self::PUT, Self::PATCH, Self::DELETE];
 
     /// Return an iterable of the available methods
-    pub fn values() -> Vec<Method> {
+    pub fn values() -> Vec<Self> {
         Vec::from(Self::OPTIONS)
     }
 }
@@ -67,6 +67,39 @@ impl ToColour for StatusCode {
     }
 }
 
+/// The enum containing which view the user is currently facing
+#[derive(Default, serde::Deserialize, serde::Serialize, Clone, PartialEq, Eq)]
+pub enum ResponseView {
+    #[default]
+    RESPONSE,
+    HEADERS,
+    COOKIES,
+}
+
+/// Implement the ToString function, using std::fmt::Display causes a stack overflow
+impl ToString for ResponseView {
+    /// Convert the method type to string
+    fn to_string(&self) -> String {
+        let str = match self {
+            Self::RESPONSE => "Response",
+            Self::HEADERS => "Headers",
+            Self::COOKIES => "Cookies",
+        };
+
+        str.to_string()
+    }
+}
+
+impl ResponseView {
+    /// A list to offer all method types for iteration
+    const OPTIONS: [Self; 3] = [Self::RESPONSE, Self::HEADERS, Self::COOKIES];
+
+    /// Return an iterable of the available methods
+    pub fn values() -> Vec<Self> {
+        Vec::from(Self::OPTIONS)
+    }
+}
+
 /// The struct containing the HTTP response
 #[derive(Default, serde::Deserialize, serde::Serialize, Clone)]
 #[serde(default)]
@@ -74,6 +107,7 @@ pub struct Response {
     pub status_code: StatusCode,
     pub headers: Vec<(String, String)>,
     pub body: String,
+    pub view: ResponseView,
 }
 
 /// The Content-Type of the request
@@ -92,11 +126,11 @@ impl ToString for ContentType {
     /// Convert the content type to string
     fn to_string(&self) -> String {
         let str = match self {
-            ContentType::XWWWFORMURLENCODED => "application/x-www-form-urlencoded",
-            ContentType::MULTIPART => "multipart/form-data",
-            ContentType::JSON => "application/json",
-            ContentType::TEXT => "text/plain",
-            ContentType::EMPTY => "empty",
+            Self::XWWWFORMURLENCODED => "application/x-www-form-urlencoded",
+            Self::MULTIPART => "multipart/form-data",
+            Self::JSON => "application/json",
+            Self::TEXT => "text/plain",
+            Self::EMPTY => "empty",
         };
 
         str.to_string()
@@ -139,9 +173,6 @@ pub enum RequestEvent {
 #[derive(Default, serde::Deserialize, serde::Serialize, Clone)]
 #[serde(default)]
 pub struct Request {
-    /// Contains whether the request is valid and sendable
-    pub sendable: bool,
-
     /// Contains the request Method
     pub method: Method,
 

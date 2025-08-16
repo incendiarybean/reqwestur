@@ -13,12 +13,12 @@ use crate::{
         buttons::{MinimiserDirection, default_button, minimiser, side_menu_button, toggle_switch},
         frames::padded_group,
         notification::{Notification, NotificationKind},
-        pip::pip,
+        pip::Pip,
     },
     utils::{
         certificates::{Certificate, CertificateStatus},
         exports::{ExportType, RequestSourceType, ReqwesturIO},
-        request::{ContentType, Method, Request},
+        request::{ContentType, Method, Request, ResponseView},
         reqwestur::{AppShortcuts, AppView, Reqwestur},
         traits::ToColour,
     },
@@ -242,11 +242,32 @@ fn task_bar(app: &mut Reqwestur, request: &mut Request) -> impl egui::Widget {
                                         if ui.button("Save Request").clicked() {
                                             if request.address.uri.is_empty() {
                                                 app.notification = Notification::new(
-                                                    "Could not save request successfully!",
+                                                    "Failed to save request!",
                                                     NotificationKind::WARN,
                                                 );
                                             } else {
-                                                app.saved_requests.push(request.clone());
+                                                let Request {
+                                                    method,
+                                                    headers,
+                                                    address,
+                                                    timestamp: _,
+                                                    content_type,
+                                                    body,
+                                                    params,
+                                                    response: _,
+                                                    notification: _,
+                                                    event: _,
+                                                } = request.clone();
+
+                                                app.saved_requests.push(Request {
+                                                    method,
+                                                    headers,
+                                                    address,
+                                                    content_type,
+                                                    body,
+                                                    params,
+                                                    ..Default::default()
+                                                });
                                                 app.notification = Notification::new(
                                                     "Saved request successfully!",
                                                     NotificationKind::INFO,
@@ -493,50 +514,50 @@ fn request_panel<'a>(app: &'a mut Reqwestur, request: &'a mut Request) -> impl e
                             ui.add_space(1.);
 
                             ui.add(padded_group(|ui| {
-                                ui.label(egui::RichText::new("Request URL").size(14.));
-                                if ui
-                                    .add(
-                                        egui::TextEdit::singleline(&mut request.address.uri)
-                                            .min_size(egui::vec2(ui.available_width(), 10.))
-                                            .hint_text("http://test.com")
-                                            .margin(5.),
-                                    )
-                                    .changed()
-                                {
-                                    if let Err(error) = reqwest::Url::parse(&request.address.uri) {
-                                        request.address.notification = Notification::new(
-                                            format!("URL cannot be parsed: {}!", error),
-                                            NotificationKind::ERROR,
-                                        );
-                                    } else {
-                                        request.address.notification.clear();
+                                ui.horizontal(|ui| {
+                                    egui::ComboBox::from_id_salt("request_method")
+                                        .selected_text(request.method.to_string())
+                                        .show_ui(ui, |ui| {
+                                            for method in Method::values() {
+                                                request.content_type = ContentType::EMPTY;
+                                                request.body = None;
+
+                                                ui.selectable_value(
+                                                    &mut request.method,
+                                                    method.clone(),
+                                                    method.to_string(),
+                                                );
+                                            }
+                                        });
+
+                                    if ui
+                                        .add(
+                                            egui::TextEdit::singleline(&mut request.address.uri)
+                                                .min_size(egui::vec2(ui.available_width(), 10.))
+                                                .hint_text("Request URL, e.g. http://test.com")
+                                                .margin(5.),
+                                        )
+                                        .changed()
+                                    {
+                                        if let Err(error) =
+                                            reqwest::Url::parse(&request.address.uri)
+                                        {
+                                            request.address.notification = Notification::new(
+                                                format!("URL cannot be parsed: {}!", error),
+                                                NotificationKind::ERROR,
+                                            );
+                                        } else {
+                                            request.address.notification.clear();
+                                        }
                                     }
-                                }
+                                });
 
                                 request.address.notification.display(ui);
                             }));
 
-                            ui.add(padded_group(|ui| {
-                                ui.label(egui::RichText::new("Request Method").size(14.));
-
-                                egui::ComboBox::new("request_method", "Select the Method")
-                                    .selected_text(request.method.to_string())
-                                    .show_ui(ui, |ui| {
-                                        for method in Method::values() {
-                                            request.content_type = ContentType::EMPTY;
-                                            request.body = None;
-
-                                            ui.selectable_value(
-                                                &mut request.method,
-                                                method.clone(),
-                                                method.to_string(),
-                                            );
-                                        }
-                                    });
-
-                                if [Method::PATCH, Method::POST, Method::PUT]
-                                    .contains(&request.method)
-                                {
+                            if [Method::PATCH, Method::POST, Method::PUT].contains(&request.method)
+                            {
+                                ui.add(padded_group(|ui| {
                                     let edit_icon = egui::include_image!("../assets/pen.svg");
                                     if ui
                                         .add(default_button(
@@ -549,8 +570,8 @@ fn request_panel<'a>(app: &'a mut Reqwestur, request: &'a mut Request) -> impl e
                                     {
                                         app.payload_editor_open = true;
                                     }
-                                }
-                            }));
+                                }));
+                            }
 
                             ui.add(padded_group(|ui| {
                                 ui.label(egui::RichText::new("Request Headers").size(14.));
@@ -625,7 +646,18 @@ fn request_panel<'a>(app: &'a mut Reqwestur, request: &'a mut Request) -> impl e
                                         .clicked()
                                     {
                                         let mut app_clone = app.clone();
-                                        std::thread::spawn(move || app_clone.send());
+                                        std::thread::spawn(move || {
+                                            match app_clone.send() {
+                                                Ok(_) => {
+                                                    app_clone.history.lock().unwrap().push(
+                                                        app_clone.request.lock().unwrap().clone(),
+                                                    );
+                                                }
+                                                Err(_) => {
+                                                    todo!("Send the error to notification mutex.")
+                                                }
+                                            };
+                                        });
                                     }
 
                                     request.notification.display(ui);
@@ -637,6 +669,7 @@ fn request_panel<'a>(app: &'a mut Reqwestur, request: &'a mut Request) -> impl e
             .response
     }
 }
+
 /// The view handling the user's saved requests
 fn saved_request_panel<'a>(
     app: &'a mut Reqwestur,
@@ -672,21 +705,18 @@ fn saved_request_panel<'a>(
                                                     content_type: _,
                                                     body: _,
                                                     params: _,
-                                                    sendable: _,
                                                     response: _,
                                                     notification: _,
                                                     event: _,
                                                 } = row_data;
 
                                                 // Create widget to add
-                                                let binding = method.to_string();
+                                                let method = method.to_string();
 
                                                 ui.with_layout(
-                                                    egui::Layout::left_to_right(
-                                                        egui::Align::Center,
-                                                    )
-                                                    .with_main_justify(true)
-                                                    .with_main_align(egui::Align::LEFT),
+                                                    egui::Layout::left_to_right(egui::Align::Min)
+                                                        .with_main_justify(true)
+                                                        .with_main_align(egui::Align::LEFT),
                                                     |ui| {
                                                         let open_icon = egui::include_image!(
                                                             "../assets/folder_open.svg"
@@ -697,13 +727,14 @@ fn saved_request_panel<'a>(
                                                                 &egui::FontId::default(),
                                                                 'M',
                                                             )
-                                                        }) * (binding.len()
+                                                        }) * (method.len()
                                                             as f32);
 
                                                         // Create button and allocate rect space
                                                         let custom_button_id =
                                                             egui::Id::new("custom_button");
 
+                                                        // TODO: Readable label
                                                         let saved_request_button =
                                                             egui::Button::new((
                                                                 egui::Image::from(open_icon)
@@ -721,6 +752,8 @@ fn saved_request_panel<'a>(
                                                                     .size(16.)
                                                                     .into_atoms(),
                                                             ))
+                                                            .truncate()
+                                                            .image_tint_follows_text_color(true)
                                                             .frame(false)
                                                             .atom_ui(ui);
 
@@ -730,10 +763,11 @@ fn saved_request_panel<'a>(
                                                         {
                                                             let saved_response_pip = ui.put(
                                                                 rect,
-                                                                pip(
-                                                                    &binding,
+                                                                Pip::new(
+                                                                    &method,
                                                                     row_data.method.to_colour(),
-                                                                ),
+                                                                )
+                                                                .create(),
                                                             );
 
                                                             if saved_request_button
@@ -844,7 +878,6 @@ fn history_panel<'a>(app: &'a mut Reqwestur, request: &'a mut Request) -> impl e
                                                                 content_type,
                                                                 body,
                                                                 params,
-                                                                sendable: _,
                                                                 response: _,
                                                                 notification: _,
                                                                 event: _,
@@ -864,11 +897,13 @@ fn history_panel<'a>(app: &'a mut Reqwestur, request: &'a mut Request) -> impl e
 
                                                     ui.vertical(|ui| {
                                                         ui.horizontal(|ui| {
-                                                            ui.add(pip(
+                                                            Pip::new(
                                                                 &row_data.method.to_string(),
                                                                 row_data.method.to_colour(),
-                                                            ));
-                                                            ui.add(pip(
+                                                            )
+                                                            .show(ui);
+
+                                                            Pip::new(
                                                                 &row_data
                                                                     .response
                                                                     .status_code
@@ -877,17 +912,19 @@ fn history_panel<'a>(app: &'a mut Reqwestur, request: &'a mut Request) -> impl e
                                                                     .response
                                                                     .status_code
                                                                     .to_colour(),
-                                                            ));
+                                                            )
+                                                            .show(ui);
 
                                                             ui.with_layout(
                                                                 egui::Layout::right_to_left(
                                                                     egui::Align::RIGHT,
                                                                 ),
                                                                 |ui| {
-                                                                    ui.add(pip(
+                                                                    Pip::new(
                                                                         &row_data.timestamp.clone(),
                                                                         egui::Color32::ORANGE,
-                                                                    ));
+                                                                    )
+                                                                    .show(ui);
                                                                 },
                                                             );
                                                         });
@@ -960,6 +997,7 @@ fn home_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
                                                 egui::Key::N,
                                             ),
                                         ))
+                                        .image_tint_follows_text_color(true)
                                         .min_size(egui::vec2(button_width, 32.)),
                                     )
                                     .clicked()
@@ -983,6 +1021,7 @@ fn home_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
                                                 egui::Key::H,
                                             ),
                                         ))
+                                        .image_tint_follows_text_color(true)
                                         .min_size(egui::vec2(button_width, 32.)),
                                     )
                                     .clicked()
@@ -1006,6 +1045,7 @@ fn home_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
                                                 egui::Key::O,
                                             ),
                                         ))
+                                        .image_tint_follows_text_color(true)
                                         .min_size(egui::vec2(button_width, 32.)),
                                     )
                                     .clicked()
@@ -1024,7 +1064,7 @@ fn home_panel<'a>(app: &'a mut Reqwestur) -> impl egui::Widget + 'a {
 fn viewer_panel(request: &mut Request) -> impl egui::Widget {
     move |ui: &mut egui::Ui| {
         let frame = egui::frame::Frame {
-            outer_margin: 10.0.into(),
+            outer_margin: 0.0.into(),
             ..Default::default()
         };
         egui::CentralPanel::default()
@@ -1049,105 +1089,116 @@ fn viewer_panel(request: &mut Request) -> impl egui::Widget {
                                 );
                             }
                             crate::utils::request::RequestEvent::SENT => {
-                                ui.add(padded_group(|ui| {
+                                egui::Frame::new().inner_margin(5.).show(ui, |ui| {
                                     ui.horizontal(|ui| {
-                                        ui.label("Response Status:");
-                                        ui.with_layout(
-                                            egui::Layout::left_to_right(egui::Align::Max)
-                                                .with_main_justify(true)
-                                                .with_main_align(egui::Align::LEFT),
-                                            |ui| {
-                                                ui.label(
-                                                    egui::RichText::new(
-                                                        response.status_code.to_string(),
-                                                    )
-                                                    .color(response.status_code.to_colour()),
-                                                );
-                                            },
-                                        );
+                                        Pip::new(
+                                            response.status_code.to_string(),
+                                            response.status_code.to_colour()
+                                        ).show(ui);
+                                        Pip::new(
+                                            response.body.len().to_string() + "B", 
+                                            None
+                                        ).show(ui);
                                     });
-                                }));
+                                });
+                                ui.add(egui::Separator::default().spacing(0.));
+                                ui.horizontal(|ui| {
+                                    egui::ScrollArea::horizontal()
+                                        .auto_shrink(false)
+                                        .max_width(ui.available_width())
+                                        .show(ui, |ui| {
+                                            ui.scope(|ui| {
+                                                ui.visuals_mut().button_frame = false;
+                                                ui.visuals_mut().widgets.inactive.weak_bg_fill =
+                                                    egui::Color32::TRANSPARENT;
+                                                ui.style_mut().spacing.button_padding =
+                                                    egui::vec2(10., 5.);
+                                                ui.style_mut().spacing.item_spacing =
+                                                    egui::Vec2::ZERO;
 
-                                ui.add(padded_group(|ui| {
-                                    egui::CollapsingHeader::new("Response Headers")
-                                        .show_unindented(ui, |ui| {
-                                            egui::ScrollArea::vertical()
-                                                .scroll_source(ScrollSource {
-                                                    scroll_bar: true,
-                                                    drag: false,
-                                                    mouse_wheel: true,
-                                                })
-                                                .show(ui, |ui| {
-                                                    for (name, value) in
-                                                        &mut request.response.headers
+                                                for view in ResponseView::values() {
+                                                    if ui
+                                                        .add(
+                                                            egui::Button::new(view.to_string())
+                                                                .selected(response.view == view)
+                                                                .corner_radius(0.)
+                                                                .stroke(egui::Stroke::NONE),
+                                                        )
+                                                        .clicked()
                                                     {
-                                                        ui.with_layout(
-                                                            egui::Layout::right_to_left(
-                                                                egui::Align::Min,
-                                                            ),
-                                                            |ui| {
-                                                                ui.add(
-                                                                    egui::TextEdit::singleline(
-                                                                        value,
-                                                                    )
-                                                                    .desired_width(
-                                                                        ui.available_width() / 2.,
-                                                                    )
-                                                                    .margin(5.),
-                                                                );
-                                                                ui.add(
-                                                                    egui::TextEdit::singleline(
-                                                                        name,
-                                                                    )
-                                                                    .desired_width(
-                                                                        ui.available_width(),
-                                                                    )
-                                                                    .margin(5.),
-                                                                );
-                                                            },
-                                                        );
+                                                        request.response.view = view;
                                                     }
-                                                });
+                                                }
+                                            });
                                         });
-                                }));
+                                });
+                                ui.add(egui::Separator::default().spacing(0.));
 
-                                egui::Frame::new()
-                                    .stroke(egui::Stroke::new(
-                                        1.,
-                                        ui.style().noninteractive().bg_stroke.color,
-                                    ))
-                                    .corner_radius(5.)
-                                    .show(ui, |ui| {
-                                        let theme =
-                                        egui_extras::syntax_highlighting::CodeTheme::from_memory(
-                                            ui.ctx(),
-                                            ui.style(),
-                                        );
-                                        let mut layouter =
-                                            |ui: &egui::Ui, buf: &dyn egui::TextBuffer, _| {
-                                                let mut layout_job =
-                                                    egui_extras::syntax_highlighting::highlight(
-                                                        ui.ctx(),
-                                                        ui.style(),
-                                                        &theme.clone(),
-                                                        buf.as_str(),
-                                                        "json",
-                                                    );
+                                match response.view {
+                                    ResponseView::RESPONSE => {
+                                            egui::Frame::new()
+                                            .inner_margin(5.)
+                                            .stroke(egui::Stroke::new(
+                                                1.,
+                                                ui.style().noninteractive().bg_stroke.color,
+                                            ))
+                                            .corner_radius(5.)
+                                            .show(ui, |ui| {
+                                                let theme =
+                                                egui_extras::syntax_highlighting::CodeTheme::from_memory(
+                                                    ui.ctx(),
+                                                    ui.style(),
+                                                );
+                                                let mut layouter =
+                                                    |ui: &egui::Ui, buf: &dyn egui::TextBuffer, _| {
+                                                        let mut layout_job =
+                                                            egui_extras::syntax_highlighting::highlight(
+                                                                ui.ctx(),
+                                                                ui.style(),
+                                                                &theme.clone(),
+                                                                buf.as_str(),
+                                                                "json",
+                                                            );
 
-                                                // Don't allow the wrap to reach the end of the TextEdit
-                                                layout_job.wrap.max_width =
-                                                    ui.available_width() - 20.;
+                                                        // Don't allow the wrap to reach the end of the TextEdit
+                                                        layout_job.wrap.max_width =
+                                                            ui.available_width() - 20.;
 
-                                                ui.fonts(|f| f.layout_job(layout_job))
-                                            };
+                                                        ui.fonts(|f| f.layout_job(layout_job))
+                                                    };
 
-                                        ui.add(
-                                            egui::TextEdit::multiline(&mut request.response.body)
-                                                .code_editor()
-                                                .layouter(&mut layouter)
-                                                .desired_width(ui.available_width()),
-                                        );
-                                    });
+                                                ui.add(
+                                                    egui::TextEdit::multiline(&mut request.response.body)
+                                                        .code_editor()
+                                                        .layouter(&mut layouter)
+                                                        .desired_width(ui.available_width()),
+                                                );
+                                            });
+                                    },
+                                    ResponseView::HEADERS => {
+                                        egui::ScrollArea::both().id_salt("response_headers").animated(true).auto_shrink(true).show(ui, |ui| {
+                                            egui::Grid::new("response_headers_table").striped(true).num_columns(2).show(ui, |ui| {
+                                                for (name, value) in response.headers.clone() {
+                                                    ui.horizontal(|ui| {
+                                                        ui.add_space(5.);
+                                                        ui.label(
+                                                            name.to_string()
+                                                        )
+                                                    });
+
+                                                    ui.with_layout(egui::Layout::left_to_right(egui::Align::Min).with_main_justify(true).with_main_align(egui::Align::LEFT), |ui| {
+                                                        ui.label(value.to_string());
+                                                    });
+
+                                                    ui.end_row();
+                                                }
+                                            });
+                                        });
+                                    },
+                                    ResponseView::COOKIES => todo!(),
+                                }
+
+
                             }
                         }
                     });

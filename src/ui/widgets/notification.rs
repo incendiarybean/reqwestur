@@ -146,15 +146,10 @@ impl Notification {
             let is_dark_mode = ui.visuals().dark_mode;
 
             let frame = egui::Frame {
+                outer_margin: 10.into(),
                 inner_margin: 10.into(),
+                corner_radius: 5.into(),
                 fill: notification.kind.to_colour(is_dark_mode),
-                shadow: egui::Shadow {
-                    color: egui::Color32::BLACK,
-                    spread: 1.into(),
-                    offset: [0, 2],
-                    blur: 30.into(),
-                    ..Default::default()
-                },
                 ..Default::default()
             };
 
@@ -185,20 +180,33 @@ impl Notification {
                             egui::Layout::right_to_left(egui::Align::RIGHT)
                                 .with_main_align(egui::Align::RIGHT),
                             |ui| {
-                                let close_icon =
-                                    egui::include_image!("../../assets/cross_circle.svg");
-                                if ui
-                                    .add(egui::ImageButton::new(
-                                        egui::Image::new(close_icon)
-                                            .tint(ui.visuals().text_color())
-                                            .fit_to_exact_size(egui::Vec2::splat(12.))
-                                            .corner_radius(5.)
-                                            .alt_text("Close Notification"),
-                                    ))
-                                    .clicked()
-                                {
-                                    self.inner = None;
-                                }
+                                ui.scope(|ui| {
+                                    ui.visuals_mut().widgets.inactive.fg_stroke =
+                                        egui::Stroke::new(1., egui::Color32::RED);
+                                    ui.visuals_mut().widgets.hovered.fg_stroke =
+                                        egui::Stroke::new(1., egui::Color32::DARK_RED);
+                                    ui.visuals_mut().widgets.active.fg_stroke =
+                                        egui::Stroke::new(1., egui::Color32::RED);
+
+                                    let close_icon =
+                                        egui::include_image!("../../assets/cross_circle.svg");
+                                    if ui
+                                        .add(
+                                            egui::Button::image(
+                                                egui::Image::new(close_icon)
+                                                    .tint(ui.visuals().text_color())
+                                                    .fit_to_exact_size(egui::Vec2::splat(18.))
+                                                    .corner_radius(5.)
+                                                    .alt_text("Close Notification"),
+                                            )
+                                            .image_tint_follows_text_color(true)
+                                            .frame(false),
+                                        )
+                                        .clicked()
+                                    {
+                                        self.inner = None;
+                                    }
+                                });
                             },
                         );
                     });

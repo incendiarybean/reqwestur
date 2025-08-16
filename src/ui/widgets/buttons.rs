@@ -10,11 +10,10 @@ pub fn default_button<'image>(
     let txt = egui::RichText::new(text).size(14.).color(colour);
     let btn = if let Some(image) = image {
         egui::Button::image_and_text(
-            egui::Image::new(image)
-                .fit_to_exact_size(egui::vec2(16., 16.))
-                .tint(colour),
+            egui::Image::new(image).fit_to_exact_size(egui::vec2(16., 16.)),
             txt,
         )
+        .image_tint_follows_text_color(true)
     } else {
         egui::Button::new(txt)
     }
@@ -34,13 +33,13 @@ pub fn side_menu_button<'a>(
     move |ui: &mut egui::Ui| {
         if small {
             ui.add(
-                egui::ImageButton::new(
+                egui::Button::image(
                     egui::Image::new(icon)
                         .fit_to_exact_size(egui::vec2(16., 16.))
-                        .alt_text(alt_text)
-                        .corner_radius(5.),
+                        .alt_text(alt_text),
                 )
-                .tint(ui.visuals().text_color())
+                .corner_radius(5.)
+                .image_tint_follows_text_color(true)
                 .selected(active),
             )
         } else {
@@ -48,10 +47,10 @@ pub fn side_menu_button<'a>(
                 egui::Button::image_and_text(
                     egui::Image::new(icon)
                         .alt_text(alt_text)
-                        .fit_to_exact_size(egui::vec2(16., 16.))
-                        .tint(ui.visuals().text_color()),
+                        .fit_to_exact_size(egui::vec2(16., 16.)),
                     egui::RichText::new(text).size(16.),
                 )
+                .image_tint_follows_text_color(true)
                 .min_size(egui::vec2(ui.available_width(), 32.))
                 .corner_radius(5.)
                 .selected(active),
@@ -60,13 +59,13 @@ pub fn side_menu_button<'a>(
     }
 }
 
-pub fn toggle_switch(on: &mut bool, label: &str) -> impl egui::Widget {
+pub fn toggle_switch(on: &mut bool, text: &str) -> impl egui::Widget {
     move |ui: &mut egui::Ui| {
         let desired_size = ui.spacing().interact_size.y * egui::vec2(2.0, 1.0);
         let label = ui
             .scope(|ui| {
                 ui.visuals_mut().button_frame = false;
-                ui.button(label)
+                ui.button(text)
             })
             .inner;
 
@@ -78,7 +77,7 @@ pub fn toggle_switch(on: &mut bool, label: &str) -> impl egui::Widget {
         }
 
         response.widget_info(|| {
-            egui::WidgetInfo::selected(egui::WidgetType::Checkbox, *on, false, "Enable dark mode?")
+            egui::WidgetInfo::selected(egui::WidgetType::Checkbox, *on, false, &text)
         });
 
         if ui.is_rect_visible(rect) {

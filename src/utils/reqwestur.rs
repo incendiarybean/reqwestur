@@ -177,7 +177,6 @@ impl Reqwestur {
             body,
             content_type,
             params,
-            sendable: _,
             response: _,
             notification: _,
             event: _,
@@ -309,6 +308,7 @@ impl Reqwestur {
             status_code: status,
             headers: simple_headers,
             body: pretty_string.unwrap(),
+            ..Default::default()
         };
 
         request.notification(&Notification::new(
