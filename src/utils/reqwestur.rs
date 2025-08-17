@@ -266,10 +266,14 @@ impl Reqwestur {
 
         let http_request = built_request.build().unwrap();
 
-        let (status, headers, text) = match client.execute(http_request) {
+        let (status, headers, cookies, text) = match client.execute(http_request) {
             Ok(response) => (
                 response.status().as_u16(),
                 response.headers().clone(),
+                response
+                    .cookies()
+                    .map(|cookie| (cookie.value().to_string()))
+                    .collect::<Vec<String>>(),
                 match response.text() {
                     Ok(str) => str,
                     Err(_) => todo!(),
@@ -281,6 +285,7 @@ impl Reqwestur {
                     .unwrap_or(reqwest::StatusCode::BAD_REQUEST)
                     .as_u16(),
                 reqwest::header::HeaderMap::new(),
+                Vec::new(),
                 response.to_string(),
             ),
         };
@@ -308,6 +313,7 @@ impl Reqwestur {
             status_code: status,
             headers: simple_headers,
             body: pretty_string.unwrap(),
+            cookies,
             ..Default::default()
         };
 

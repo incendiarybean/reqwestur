@@ -106,6 +106,7 @@ impl ResponseView {
 pub struct Response {
     pub status_code: StatusCode,
     pub headers: Vec<(String, String)>,
+    pub cookies: Vec<String>,
     pub body: String,
     pub view: ResponseView,
 }

@@ -81,3 +81,65 @@ pub fn editor(app: &mut Reqwestur, request: &mut Request, ui: &mut egui::Ui) {
         },
     );
 }
+
+pub trait StringToVec {
+    fn convert(&self) -> Vec<Vec<String>>;
+}
+
+impl StringToVec for Vec<(String, String)> {
+    fn convert(&self) -> Vec<Vec<String>> {
+        self.iter()
+            .map(|(str0, str1)| vec![str0.to_string(), str1.to_string()])
+            .collect()
+    }
+}
+
+impl StringToVec for Vec<String> {
+    fn convert(&self) -> Vec<Vec<String>> {
+        self.iter().map(|str| vec![str.to_string()]).collect()
+    }
+}
+
+/// The viewer that displays the request's headers in a table-like grid
+pub fn viewer(content: Vec<Vec<String>>) -> impl egui::Widget {
+    move |ui: &mut egui::Ui| {
+        let column_size = content.first().unwrap_or(&Vec::default()).len();
+
+        egui::ScrollArea::both()
+            .id_salt("response_headers")
+            .animated(true)
+            .auto_shrink(false)
+            .show(ui, |ui| {
+                egui::Grid::new("response_headers_table")
+                    .striped(true)
+                    .num_columns(column_size)
+                    .min_row_height(24.)
+                    .show(ui, |ui| {
+                        for values in content {
+                            for (index, value) in values.clone().into_iter().enumerate() {
+                                if index == values.len() {
+                                    ui.with_layout(
+                                        egui::Layout::left_to_right(egui::Align::Min)
+                                            .with_main_justify(true)
+                                            .with_main_align(egui::Align::LEFT)
+                                            .with_cross_align(egui::Align::Center),
+                                        |ui| {
+                                            ui.label(value.to_string());
+                                        },
+                                    );
+                                } else {
+                                    ui.horizontal(|ui| {
+                                        ui.add_space(10.);
+                                        ui.label(value.to_string())
+                                    });
+                                }
+                            }
+
+                            ui.end_row();
+                        }
+                    })
+                    .response
+            })
+            .inner
+    }
+}
