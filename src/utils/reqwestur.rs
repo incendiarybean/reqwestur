@@ -268,7 +268,14 @@ impl Reqwestur {
 
         let (status, headers, cookies, text) = match client.execute(http_request) {
             Ok(response) => (
-                response.status().as_u16(),
+                (
+                    response.status().as_u16(),
+                    response
+                        .status()
+                        .canonical_reason()
+                        .unwrap_or("UNKNOWN")
+                        .to_string(),
+                ),
                 response.headers().clone(),
                 response
                     .cookies()
@@ -280,10 +287,18 @@ impl Reqwestur {
                 },
             ),
             Err(response) => (
-                response
-                    .status()
-                    .unwrap_or(reqwest::StatusCode::BAD_REQUEST)
-                    .as_u16(),
+                (
+                    response
+                        .status()
+                        .unwrap_or(reqwest::StatusCode::BAD_REQUEST)
+                        .as_u16(),
+                    response
+                        .status()
+                        .unwrap_or(reqwest::StatusCode::BAD_REQUEST)
+                        .canonical_reason()
+                        .unwrap_or("UNKNOWN")
+                        .to_string(),
+                ),
                 reqwest::header::HeaderMap::new(),
                 Vec::new(),
                 response.to_string(),
@@ -310,7 +325,7 @@ impl Reqwestur {
             .collect();
 
         let response = Response {
-            status_code: status,
+            status: status,
             headers: simple_headers,
             body: pretty_string.unwrap(),
             cookies,

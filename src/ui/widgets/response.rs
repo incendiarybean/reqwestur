@@ -3,12 +3,13 @@ use eframe::egui::{self, scroll_area::ScrollSource};
 use crate::{
     ui::widgets::{
         chip::Chip,
+        groups::centered_group,
         headers::{self, StringToVec},
         tabs::tabs,
     },
     utils::{
         request::{Request, ResponseView},
-        traits::ToColour,
+        traits::{ToColour, ToStringForeign},
     },
 };
 
@@ -32,7 +33,17 @@ pub fn panel(request: &mut Request) -> impl egui::Widget {
                         let response = request.response.clone();
                         match request.event {
                             crate::utils::request::RequestEvent::UNSENT => {
-                                ui.label("You haven't made a request yet!");
+                                ui.add(centered_group(|ui| {
+                                    let globe_icon = egui::include_image!("../../assets/globe.svg");
+                                    ui.add(
+                                        egui::Image::new(globe_icon)
+                                            .fit_to_original_size(2.5)
+                                            .tint(ui.visuals().text_color()),
+                                    );
+
+                                    ui.add_space(5.);
+                                    ui.label("You haven't sent the request yet!");
+                                }));
                             }
                             crate::utils::request::RequestEvent::PENDING => {
                                 ui.add_sized(
@@ -51,10 +62,8 @@ pub fn panel(request: &mut Request) -> impl egui::Widget {
                                     .show(ui, |ui| {
                                         ui.horizontal(|ui| {
                                             Chip::new(
-                                                response.status_code.to_string(),
-                                                response
-                                                    .status_code
-                                                    .to_colour(ui.visuals().dark_mode),
+                                                response.status.to_string(),
+                                                response.status.to_colour(ui.visuals().dark_mode),
                                             )
                                             .show(ui);
                                             Chip::new(response.body.len().to_string() + "B", None)
@@ -89,12 +98,16 @@ pub fn panel(request: &mut Request) -> impl egui::Widget {
 fn body_editor(body: &mut String) -> impl egui::Widget {
     move |ui: &mut egui::Ui| {
         egui::Frame::new()
-            .outer_margin(5.)
+            .outer_margin(egui::Margin {
+                left: 3,
+                right: 3,
+                top: 1,
+                bottom: 3,
+            })
             .stroke(egui::Stroke::new(
                 1.,
                 ui.style().noninteractive().bg_stroke.color,
             ))
-            .corner_radius(5.)
             .show(ui, |ui| {
                 let theme =
                     egui_extras::syntax_highlighting::CodeTheme::from_memory(ui.ctx(), ui.style());
@@ -119,7 +132,7 @@ fn body_editor(body: &mut String) -> impl egui::Widget {
                         .layouter(&mut layouter)
                         .desired_width(ui.available_width())
                         .min_size(egui::vec2(ui.available_width(), ui.available_height())),
-                );
+                )
             })
             .response
     }

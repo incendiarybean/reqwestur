@@ -5,7 +5,7 @@ use crate::{
     utils::{
         request::Request,
         reqwestur::{AppView, Reqwestur},
-        traits::ToColour,
+        traits::{ToColour, ToStringForeign},
     },
 };
 
@@ -125,14 +125,11 @@ pub fn panel<'a>(app: &'a mut Reqwestur, request: &'a mut Request) -> impl egui:
                                                             Chip::new(
                                                                 &row_data
                                                                     .response
-                                                                    .status_code
+                                                                    .status
                                                                     .to_string(),
-                                                                row_data
-                                                                    .response
-                                                                    .status_code
-                                                                    .to_colour(
-                                                                        ui.visuals().dark_mode,
-                                                                    ),
+                                                                row_data.response.status.to_colour(
+                                                                    ui.visuals().dark_mode,
+                                                                ),
                                                             )
                                                             .show(ui);
 

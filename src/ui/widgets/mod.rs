@@ -2,6 +2,7 @@ pub(crate) mod about;
 pub(crate) mod buttons;
 pub(crate) mod certificates;
 pub(crate) mod chip;
+pub(crate) mod groups;
 pub(crate) mod headers;
 pub(crate) mod help;
 pub(crate) mod history;

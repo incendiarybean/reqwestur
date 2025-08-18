@@ -1,6 +1,9 @@
 use eframe::egui;
 
-use crate::{ui::widgets::notification::Notification, utils::traits::ToColour};
+use crate::{
+    ui::widgets::notification::Notification,
+    utils::traits::{ToColour, ToStringForeign},
+};
 
 /// HTTP method mapping
 #[derive(Default, serde::Deserialize, serde::Serialize, Clone, PartialEq, Eq)]
@@ -54,16 +57,23 @@ impl Method {
 }
 
 /// An alias to annotate the u16 type as a HTTP status code
-type StatusCode = u16;
+type StatusCode = (u16, String);
 
 impl ToColour for StatusCode {
     /// Converts the current u16 value to a colour value (based on HTTP status codes)
     fn to_colour(&self, _dark_mode: bool) -> egui::Color32 {
-        match self {
+        match self.0 {
             200..=399 => egui::Color32::from_rgb(60, 215, 60),
             400..=499 => egui::Color32::ORANGE,
             _ => egui::Color32::RED,
         }
+    }
+}
+
+impl ToStringForeign for StatusCode {
+    /// Convert from the foreign Tuple type to String
+    fn to_string(&self) -> String {
+        format!("{} {}", self.0, self.1)
     }
 }
 
@@ -104,7 +114,7 @@ impl ResponseView {
 #[derive(Default, serde::Deserialize, serde::Serialize, Clone)]
 #[serde(default)]
 pub struct Response {
-    pub status_code: StatusCode,
+    pub status: StatusCode,
     pub headers: Vec<(String, String)>,
     pub cookies: Vec<String>,
     pub body: String,
